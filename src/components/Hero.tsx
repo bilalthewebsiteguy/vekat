@@ -53,7 +53,7 @@ export default function Hero() {
           </div>
         </div>
 
-        <div className="-order-1 rounded-[20px] border border-cream/18 bg-cream/6 p-[30px] backdrop-blur-[6px] lg:order-none">
+        <div className="rounded-[20px] border border-cream/18 bg-cream/6 p-[30px] backdrop-blur-[6px]">
           <h3 className="mb-3.5 text-[19px] text-cream">What we do</h3>
           <ul className="m-0 mb-[22px] list-none p-0">
             {offerings.map((item) => (
