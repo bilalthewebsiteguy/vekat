@@ -12,7 +12,7 @@ export default function Register() {
   return (
     <section id="register" className="bg-cream py-[60px] md:py-24">
       <div className="wrap grid items-start gap-[54px] lg:grid-cols-[.9fr_1.1fr]">
-        <div className="lg:sticky lg:top-[140px]">
+        <div className="lg:sticky lg:top-[148px]">
           <div className="eyebrow">Membership registration</div>
           <h2 className="text-[clamp(26px,3.2vw,34px)]">Join the Home Bridge Cooperative</h2>
           <p className="text-[15.5px] text-muted">

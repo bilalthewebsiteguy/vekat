@@ -1,11 +1,9 @@
-import { ArrowRight, BriefcaseBusiness, Building2, Ship, Sprout, Stethoscope } from "lucide-react";
-
 const offerings = [
-  { icon: Ship, text: "Import, export & general merchandise trading" },
-  { icon: Building2, text: "Real estate development & facilities management" },
-  { icon: Stethoscope, text: "Healthcare, pharmacy & education services" },
-  { icon: Sprout, text: "Agriculture & agro-allied production" },
-  { icon: BriefcaseBusiness, text: "Business & management consultancy" },
+  "Import, export & general merchandise trading",
+  "Real estate development & facilities management",
+  "Healthcare, pharmacy & education services",
+  "Agriculture & agro-allied production",
+  "Business & management consultancy",
 ];
 
 const stats = [
@@ -55,21 +53,20 @@ export default function Hero() {
           </div>
         </div>
 
-        <div className="-order-1 rounded-[20px] border border-cream/15 bg-green-900/40 p-[30px] lg:order-none">
+        <div className="-order-1 rounded-[20px] border border-cream/18 bg-cream/6 p-[30px] backdrop-blur-[6px] lg:order-none">
           <h3 className="mb-3.5 text-[19px] text-cream">What we do</h3>
-          <ul className="m-0 mb-6 list-none p-0">
-            {offerings.map(({ icon: Icon, text }) => (
+          <ul className="m-0 mb-[22px] list-none p-0">
+            {offerings.map((item) => (
               <li
-                key={text}
-                className="flex items-center gap-3.5 border-t border-cream/12 py-3 text-[14.5px] text-[#E4E9E1] first:border-t-0"
+                key={item}
+                className="flex items-start gap-2.5 border-t border-cream/12 py-2 text-[14.5px] text-[#E4E9E1] first:border-t-0"
               >
-                <Icon className="size-[18px] shrink-0 text-gold-400" strokeWidth={1.75} aria-hidden /> {text}
+                <span className="shrink-0 text-gold-400">●</span> {item}
               </li>
             ))}
           </ul>
-          <a href="#services" className="btn btn-outline-light group w-full justify-center">
+          <a href="#services" className="btn btn-outline-light w-full justify-center">
             See all business areas
-            <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
           </a>
         </div>
       </div>

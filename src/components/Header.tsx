@@ -8,7 +8,6 @@ const navLinks = [
   { href: "#about", label: "About" },
   { href: "#services", label: "Business Areas" },
   { href: "#homebridge", label: "Home Bridge Cooperative" },
-  { href: "#register", label: "Register" },
   { href: "#contact", label: "Contact" },
 ];
 
@@ -17,18 +16,20 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-line bg-cream/92 backdrop-blur-[8px]">
-      <div className="bg-green-900 text-[13px] text-cream">
+      <div className="bg-green-900 text-[13.5px] font-medium text-cream">
         <div className="wrap flex flex-wrap items-center justify-center gap-x-[18px] gap-y-1.5 py-[7px] text-center md:justify-between md:text-left">
           <div>
             <a href="mailto:admin@vekat.org" className="text-cream no-underline opacity-90 hover:opacity-100">
               admin@vekat.org
             </a>
-            <span className="mx-0.5 opacity-40"> • </span>
+            <span className="mx-3 opacity-80">•</span>
             <a href="tel:+2348105832602" className="text-cream no-underline opacity-90 hover:opacity-100">
               +234 810 583 2602
             </a>
           </div>
-          <div>Abuja, FCT, Nigeria &nbsp;·&nbsp; RC 9616601</div>
+          <div>
+            Abuja, FCT, Nigeria<span className="mx-3 opacity-80">•</span>RC 9616601
+          </div>
         </div>
       </div>
 
@@ -40,13 +41,13 @@ export default function Header() {
             width={1628}
             height={600}
             priority
-            className="h-[38px] w-auto"
+            className="h-[42px] w-auto"
           />
         </a>
 
         <div
           id="navlinks"
-          className={`absolute inset-x-0 top-full flex h-dvh flex-col items-start gap-[22px] overflow-y-auto bg-cream px-6 py-7 transition-[transform,visibility] duration-250 ease-in-out xl:visible xl:static xl:h-auto xl:translate-x-0 xl:flex-row xl:items-center xl:gap-7 xl:overflow-visible xl:bg-transparent xl:p-0 xl:transition-none ${
+          className={`absolute inset-x-0 top-full flex h-dvh flex-col items-start gap-[22px] overflow-y-auto bg-cream px-6 py-7 transition-[transform,visibility] duration-250 ease-in-out xl:visible xl:static xl:ml-11 xl:flex-1 xl:h-auto xl:translate-x-0 xl:flex-row xl:items-center xl:gap-10 xl:overflow-visible xl:bg-transparent xl:p-0 xl:transition-none ${
             open ? "visible translate-x-0" : "invisible -translate-x-full"
           }`}
         >
@@ -55,7 +56,7 @@ export default function Header() {
               key={link.href}
               href={link.href}
               onClick={() => setOpen(false)}
-              className="border-b-2 border-transparent px-0.5 py-1.5 text-[17px] font-semibold text-ink no-underline hover:border-gold-500 xl:text-[14.5px]"
+              className="border-b-2 border-transparent px-0.5 py-1.5 text-[17px] font-medium text-ink no-underline hover:border-gold-500 xl:text-[16px]"
             >
               {link.label}
             </a>
@@ -63,11 +64,11 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <a href="#register" className="btn btn-primary whitespace-nowrap max-sm:px-4 max-sm:py-2.5 max-sm:text-[14px]">
-            Join Home Bridge
-          </a>
-          <a href="#contact" className="btn btn-outline hidden sm:inline-flex">
-            Contact Us
+          <a
+            href="#register"
+            className="btn btn-primary px-11 py-4 text-[16px] font-bold whitespace-nowrap max-sm:px-5 max-sm:py-2.5 max-sm:text-[14px]"
+          >
+            Registration
           </a>
           <button
             type="button"

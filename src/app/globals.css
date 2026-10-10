@@ -20,9 +20,9 @@
   html {
     scroll-behavior: smooth;
     /* Height of the sticky header, so anchored sections land just below it. */
-    scroll-padding-top: 135px;
-    @variant md {
-      scroll-padding-top: 116px;
+    scroll-padding-top: 137px;
+    @variant sm {
+      scroll-padding-top: 124px;
     }
   }
   body {
