@@ -1,26 +1,78 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-green-900: #0f2e22;
+  --color-green-700: #1b4332;
+  --color-green-600: #24573f;
+  --color-gold-500: #c9972b;
+  --color-gold-400: #dbae4e;
+  --color-cream: #faf7f0;
+  --color-cream-dim: #f1ece0;
+  --color-ink: #22252a;
+  --color-muted: #5b6660;
+  --color-line: #e4ddcb;
+
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-fraunces), serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /* Height of the sticky header, so anchored sections land just below it. */
+    scroll-padding-top: 135px;
+    @variant md {
+      scroll-padding-top: 116px;
+    }
+  }
+  body {
+    @apply bg-cream font-sans leading-[1.6] text-ink antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply m-0 mb-[0.5em] font-display leading-[1.12] font-semibold tracking-[-0.01em] text-green-700;
+  }
+  /* Browser default heading sizes, which the original design relies on. */
+  h1 {
+    font-size: 2em;
+  }
+  h2 {
+    font-size: 1.5em;
+  }
+  h3 {
+    font-size: 1.17em;
+  }
+  p {
+    @apply m-0 mb-[1em];
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@utility wrap {
+  @apply mx-auto max-w-[1180px] px-6;
+}
+
+@utility eyebrow {
+  @apply mb-2.5 text-[13px] font-bold tracking-[0.06em] text-gold-500;
+}
+
+@utility btn {
+  @apply inline-flex cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-transparent px-[26px] py-[13px] font-sans text-[15px] font-semibold no-underline transition-[transform,box-shadow,background-color] duration-150 active:scale-[0.98];
+}
+
+@utility btn-primary {
+  @apply bg-gold-500 text-green-900 hover:bg-gold-400 hover:shadow-[0_6px_18px_rgba(201,151,43,.35)];
+}
+
+@utility btn-outline {
+  @apply border-green-700 bg-transparent text-green-700 hover:bg-green-700 hover:text-cream;
+}
+
+@utility btn-outline-light {
+  @apply border-cream/55 bg-transparent text-cream hover:bg-cream/12;
+}
+
+@utility service-icon {
+  @apply mb-4 flex size-[46px] items-center justify-center rounded-xl bg-green-700 text-[20px] text-gold-400;
 }
