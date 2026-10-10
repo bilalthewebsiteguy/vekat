@@ -54,7 +54,7 @@
 }
 
 @utility eyebrow {
-  @apply mb-2.5 text-[13px] font-bold tracking-[0.06em] text-gold-500;
+  @apply mb-3 text-[12px] font-bold tracking-[0.14em] text-gold-500 uppercase;
 }
 
 @utility btn {
@@ -71,8 +71,4 @@
 
 @utility btn-outline-light {
   @apply border-cream/55 bg-transparent text-cream hover:bg-cream/12;
-}
-
-@utility service-icon {
-  @apply mb-4 flex size-[46px] items-center justify-center rounded-xl bg-green-700 text-[20px] text-gold-400;
 }

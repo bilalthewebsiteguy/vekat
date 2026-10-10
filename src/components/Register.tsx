@@ -1,3 +1,4 @@
+import { CreditCard, Mail } from "lucide-react";
 import RegistrationForm from "./RegistrationForm";
 
 const steps = [
@@ -9,9 +10,9 @@ const steps = [
 
 export default function Register() {
   return (
-    <section id="register" className="bg-cream py-[60px] md:py-[88px]">
+    <section id="register" className="bg-cream py-[60px] md:py-24">
       <div className="wrap grid items-start gap-[54px] lg:grid-cols-[.9fr_1.1fr]">
-        <div>
+        <div className="lg:sticky lg:top-[140px]">
           <div className="eyebrow">Membership registration</div>
           <h2 className="text-[clamp(26px,3.2vw,34px)]">Join the Home Bridge Cooperative</h2>
           <p className="text-[15.5px] text-muted">
@@ -32,6 +33,27 @@ export default function Register() {
               </li>
             ))}
           </ol>
+
+          <div className="mt-4 divide-y divide-line rounded-2xl border border-line bg-white">
+            <div className="flex gap-3.5 p-5">
+              <CreditCard className="mt-0.5 size-5 shrink-0 text-gold-500" strokeWidth={1.75} aria-hidden />
+              <p className="m-0 text-[14px] text-muted">
+                <b className="block text-[14.5px] font-semibold text-green-700">Secure payment</b>
+                The registration fee is paid through Stripe, our payment partner, once your form is received.
+              </p>
+            </div>
+            <div className="flex gap-3.5 p-5">
+              <Mail className="mt-0.5 size-5 shrink-0 text-gold-500" strokeWidth={1.75} aria-hidden />
+              <p className="m-0 text-[14px] text-muted">
+                <b className="block text-[14.5px] font-semibold text-green-700">Questions before you join?</b>
+                Email the cooperative at{" "}
+                <a href="mailto:info@homebridge.org" className="font-medium text-green-700 hover:text-gold-500">
+                  info@homebridge.org
+                </a>
+                .
+              </p>
+            </div>
+          </div>
         </div>
 
         <RegistrationForm />

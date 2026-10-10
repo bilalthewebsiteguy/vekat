@@ -1,18 +1,20 @@
-const credentials = [
-  { label: "COMPANY NAME", value: "VEKAT Nig Ltd" },
-  { label: "RC NUMBER", value: "9616601" },
-  { label: "COMPANY TYPE", value: "Private company limited by shares" },
-  { label: "INCORPORATED", value: "16 June 2026" },
-  { label: "REGISTERED OFFICE", value: "Abuja, FCT, Nigeria" },
-  { label: "SHARE CAPITAL", value: "₦1,000,000" },
-  { label: "DIRECTOR", value: "Evbuomwan Victor Ekhorutomwen" },
-  { label: "DIRECTOR", value: "Okonofua Sebastine" },
+import { Landmark } from "lucide-react";
+
+const profile = [
+  { label: "Company name", value: "VEKAT Nig Ltd" },
+  { label: "RC number", value: "9616601" },
+  { label: "Company type", value: "Private company limited by shares" },
+  { label: "Incorporated", value: "16 June 2026" },
+  { label: "Registered office", value: "Abuja, FCT, Nigeria" },
+  { label: "Share capital", value: "₦1,000,000" },
 ];
+
+const directors = ["Evbuomwan Victor Ekhorutomwen", "Okonofua Sebastine"];
 
 export default function About() {
   return (
-    <section id="about" className="py-[60px] md:py-[88px]">
-      <div className="wrap grid items-start gap-[60px] lg:grid-cols-[.95fr_1.05fr]">
+    <section id="about" className="py-[60px] md:py-24">
+      <div className="wrap grid items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-16">
         <div>
           <div className="eyebrow">About the company</div>
           <h2 className="text-[clamp(28px,3.4vw,38px)]">
@@ -25,18 +27,41 @@ export default function About() {
             room to back ventures across several sectors from one Abuja-based office, while also acting as a
             hands-on multi-sector consultancy for partners and member projects such as the Home Bridge Cooperative.
           </p>
-          <p className="text-[16px] text-muted">
+          <p className="m-0 text-[16px] text-muted">
             The company is led by its two founding directors and shareholders, with its registered office in Abuja,
             FCT.
           </p>
         </div>
-        <div className="mt-7 grid gap-3.5 md:grid-cols-2">
-          {credentials.map((c, i) => (
-            <div key={i} className="rounded-xl border border-line bg-white px-[18px] py-4">
-              <b className="block text-[13px] tracking-[0.03em] text-green-700">{c.label}</b>
-              <span className="text-[14.5px] text-muted">{c.value}</span>
+
+        <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(27,67,50,.04),0_12px_32px_rgba(27,67,50,.06)]">
+          <div className="flex items-center gap-3 border-b border-line bg-cream-dim/60 px-7 py-5">
+            <Landmark className="size-5 text-gold-500" strokeWidth={1.75} aria-hidden />
+            <div>
+              <div className="text-[15px] font-semibold text-green-700">Company profile</div>
+              <div className="text-[13px] text-muted">Registered with the Corporate Affairs Commission</div>
             </div>
-          ))}
+          </div>
+          <dl className="m-0 grid sm:grid-cols-2">
+            {profile.map((item, i) => (
+              <div
+                key={item.label}
+                className={`border-b border-line px-7 py-[18px] ${i % 2 === 0 ? "sm:border-r" : ""}`}
+              >
+                <dt className="mb-1 text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">
+                  {item.label}
+                </dt>
+                <dd className="m-0 text-[15px] font-medium text-ink">{item.value}</dd>
+              </div>
+            ))}
+            <div className="px-7 py-[18px] sm:col-span-2">
+              <dt className="mb-1 text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">Directors</dt>
+              <dd className="m-0 flex flex-col gap-0.5 text-[15px] font-medium text-ink sm:flex-row sm:gap-6">
+                {directors.map((d) => (
+                  <span key={d}>{d}</span>
+                ))}
+              </dd>
+            </div>
+          </dl>
         </div>
       </div>
     </section>
