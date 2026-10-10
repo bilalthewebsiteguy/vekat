@@ -34,20 +34,22 @@ export default function Header() {
       </div>
 
       <nav className="wrap flex items-center justify-between py-3.5">
-        <a href="#top" className="flex items-center gap-2.5 no-underline" onClick={() => setOpen(false)}>
-          <Image
-            src="/vekat-logo.png"
-            alt="VEKAT Nig Ltd"
-            width={1628}
-            height={600}
-            priority
-            className="h-[42px] w-auto"
-          />
-        </a>
+        <div className="xl:flex-1">
+          <a href="#top" className="inline-flex items-center gap-2.5 align-middle no-underline" onClick={() => setOpen(false)}>
+            <Image
+              src="/vekat-logo.png"
+              alt="VEKAT Nig Ltd"
+              width={1628}
+              height={600}
+              priority
+              className="h-[42px] w-auto"
+            />
+          </a>
+        </div>
 
         <div
           id="navlinks"
-          className={`absolute inset-x-0 top-full flex h-dvh flex-col items-start gap-[22px] overflow-y-auto bg-cream px-6 py-7 transition-[transform,visibility] duration-250 ease-in-out xl:visible xl:static xl:ml-11 xl:flex-1 xl:h-auto xl:translate-x-0 xl:flex-row xl:items-center xl:gap-10 xl:overflow-visible xl:bg-transparent xl:p-0 xl:transition-none ${
+          className={`absolute inset-x-0 top-full flex h-dvh flex-col items-start gap-[22px] overflow-y-auto bg-cream px-6 py-7 transition-[transform,visibility] duration-250 ease-in-out xl:visible xl:static xl:h-auto xl:translate-x-0 xl:flex-row xl:items-center xl:gap-8 xl:overflow-visible xl:bg-transparent xl:p-0 xl:transition-none ${
             open ? "visible translate-x-0" : "invisible -translate-x-full"
           }`}
         >
@@ -63,7 +65,7 @@ export default function Header() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-end gap-2.5 xl:flex-1">
           <a
             href="#register"
             className="btn btn-primary px-11 py-4 text-[16px] font-bold whitespace-nowrap max-sm:px-5 max-sm:py-2.5 max-sm:text-[14px]"
