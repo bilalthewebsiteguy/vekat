@@ -55,13 +55,11 @@ const services: { icon: LucideIcon; title: string; text: string }[] = [
 
 export default function Services() {
   return (
-    <section id="services" className="border-y border-line bg-cream-dim py-12">
+    <section id="services" className="border-y border-line bg-cream-dim py-12 lg:py-10">
       <div className="wrap">
-        <div className="mb-8 grid items-end gap-4 lg:grid-cols-[1fr_1fr] lg:gap-16">
-          <div>
-            <div className="eyebrow">Business areas</div>
-            <h2 className="m-0 text-[clamp(26px,2.6vw,34px)]">Eight divisions, one group.</h2>
-          </div>
+        <div className="mb-6 max-w-[640px]">
+          <div className="eyebrow">Business areas</div>
+          <h2 className="mb-2.5 text-[clamp(26px,2.6vw,34px)]">Eight divisions, one group.</h2>
           <p className="m-0 text-[16px] text-muted">
             Spanning VEKAT&apos;s constitution and its growing technical services — the full scope the company is built
             to operate in.
@@ -72,7 +70,7 @@ export default function Services() {
           {services.map(({ icon: Icon, title, text }, i) => (
             <div
               key={title}
-              className="group relative bg-cream px-6 py-5 transition-colors duration-200 hover:bg-white"
+              className="group relative bg-cream px-6 py-[18px] transition-colors duration-200 hover:bg-white"
             >
               <span className="absolute top-5 right-6 font-display text-[13px] text-gold-500 tabular-nums">
                 {String(i + 1).padStart(2, "0")}
