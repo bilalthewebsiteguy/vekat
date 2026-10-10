@@ -22,7 +22,7 @@ const steps = [
 
 export default function Register() {
   return (
-    <section id="register" className="bg-cream py-12 lg:py-8">
+    <section id="register" className="section-screen bg-cream py-12 lg:py-8">
       <div className="wrap grid items-start gap-10 lg:gap-14 lg:grid-cols-[.9fr_1.1fr]">
         <div className="lg:sticky lg:top-[97px]">
           <div className="eyebrow">Membership registration</div>

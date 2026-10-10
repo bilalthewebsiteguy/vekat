@@ -9,7 +9,7 @@ const channels: { icon: LucideIcon; label: string; value: string; href?: string 
 
 export default function Contact() {
   return (
-    <section id="contact" className="border-t border-line bg-cream-dim py-12 lg:py-14">
+    <section id="contact" className="section-screen border-t border-line bg-cream-dim py-12">
       <div className="wrap grid items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-16">
         <div>
           <div className="eyebrow">Get in touch</div>

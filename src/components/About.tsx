@@ -13,7 +13,7 @@ const directors = ["Evbuomwan Victor Ekhorutomwen", "Okonofua Sebastine"];
 
 export default function About() {
   return (
-    <section id="about" className="py-12 lg:py-14">
+    <section id="about" className="section-screen py-12">
       <div className="wrap grid items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-16">
         <div>
           <div className="eyebrow">About the company</div>
@@ -55,11 +55,7 @@ export default function About() {
             ))}
             <div className="px-7 py-[18px] sm:col-span-2">
               <dt className="mb-1 text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">Directors</dt>
-              <dd className="m-0 flex flex-col gap-0.5 text-[15px] font-medium text-ink sm:flex-row sm:gap-6">
-                {directors.map((d) => (
-                  <span key={d}>{d}</span>
-                ))}
-              </dd>
+              <dd className="m-0 text-[15px] font-medium text-ink">{directors.join(", ")}</dd>
             </div>
           </dl>
         </div>

@@ -1,3 +1,5 @@
+import { ArrowRight } from "lucide-react";
+
 const offerings = [
   "Import, export & general merchandise trading",
   "Real estate development & facilities management",
@@ -16,7 +18,7 @@ export default function Hero() {
   return (
     <section
       id="home"
-      className="relative overflow-hidden py-12 text-cream"
+      className="relative flex min-h-[calc(100svh-125px)] flex-col justify-center overflow-hidden py-8 text-cream lg:py-6 sm:min-h-[calc(100svh-107px)] [&>.wrap]:w-full"
       style={{
         background:
           "radial-gradient(ellipse 900px 500px at 85% -10%, rgba(201,151,43,.18), transparent 60%), linear-gradient(180deg, var(--color-green-900), var(--color-green-700) 70%)",
@@ -24,7 +26,20 @@ export default function Hero() {
     >
       <div className="wrap grid items-center gap-14 lg:grid-cols-[1.15fr_.85fr]">
         <div>
-          <h1 className="text-[clamp(32px,3.8vw,50px)] text-cream">
+          <a
+            href="#register"
+            className="group mb-5 inline-flex items-center gap-2.5 rounded-full border border-gold-400/45 bg-gold-500/15 py-1.5 pr-2 pl-3.5 text-[13px] font-semibold text-gold-400 no-underline transition-colors hover:border-gold-400/80 hover:bg-gold-500/25"
+          >
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full rounded-full bg-gold-400 opacity-60 motion-safe:animate-ping" />
+              <span className="relative inline-flex size-2 rounded-full bg-gold-400" />
+            </span>
+            Home Bridge Cooperative — now open for registration
+            <span className="flex size-5 items-center justify-center rounded-full bg-gold-500 text-green-900">
+              <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} aria-hidden />
+            </span>
+          </a>
+          <h1 className="text-[clamp(32px,3.5vw,50px)] text-cream">
             Building trade, property <em className="text-gold-400 not-italic">&amp; people</em> across Nigeria and the
             diaspora.
           </h1>
@@ -32,7 +47,7 @@ export default function Hero() {
             VEKAT Nig Ltd is a diversified consultancy and trading group working across import &amp; export, real
             estate, healthcare, agriculture and business advisory — and the umbrella behind the Home Bridge Cooperative.
           </p>
-          <div className="mt-6 flex flex-wrap gap-3.5">
+          <div className="mt-5 flex flex-wrap gap-3.5">
             <a href="#homebridge" className="btn btn-primary">
               Explore Home Bridge Cooperative
             </a>
@@ -40,7 +55,7 @@ export default function Hero() {
               Talk to Us
             </a>
           </div>
-          <div className="mt-8 grid max-w-[600px] grid-cols-3 divide-x divide-cream/15 border-t border-cream/15 pt-5">
+          <div className="mt-6 grid max-w-[600px] grid-cols-3 divide-x divide-cream/15 border-t border-cream/15 pt-5">
             {stats.map((s) => (
               <div key={s.label} className="px-3 first:pl-0 sm:px-6">
                 <b className="block font-display whitespace-nowrap text-[clamp(17px,2.4vw,26px)] leading-tight font-semibold text-gold-400">

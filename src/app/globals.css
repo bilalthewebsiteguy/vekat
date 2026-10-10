@@ -53,6 +53,20 @@
   @apply mx-auto max-w-[1180px] px-6;
 }
 
+/* Fills the screen below the pinned nav, so a section opened from the menu shows nothing of its neighbours. */
+@utility section-screen {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100svh - 65px);
+  @variant sm {
+    min-height: calc(100svh - 73px);
+  }
+  & > .wrap {
+    width: 100%;
+  }
+}
+
 @utility eyebrow {
   @apply mb-3 text-[12px] font-bold tracking-[0.14em] text-gold-500 uppercase;
 }

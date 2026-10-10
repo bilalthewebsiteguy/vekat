@@ -19,7 +19,7 @@ export default function HomeBridge() {
   return (
     <section
       id="homebridge"
-      className="relative overflow-hidden bg-linear-135 from-green-700 to-green-900 py-[60px] text-cream md:py-24"
+      className="section-screen relative overflow-hidden bg-linear-135 from-green-700 to-green-900 py-[60px] text-cream md:py-24"
     >
       <div
         aria-hidden
@@ -29,18 +29,9 @@ export default function HomeBridge() {
         }}
       />
       <div className="wrap relative">
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
-          <div>
+        <div className="mb-8">
             <div className="eyebrow text-gold-400">Featured project</div>
             <h2 className="m-0 text-[clamp(26px,2.6vw,34px)] text-cream">Home Bridge Cooperative</h2>
-          </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-gold-400/40 bg-gold-500/15 px-3.5 py-1.5 text-[12.5px] font-semibold tracking-[0.04em] text-gold-400">
-            <span className="relative flex size-2">
-              <span className="absolute inline-flex size-full motion-safe:animate-ping rounded-full bg-gold-400 opacity-60" />
-              <span className="relative inline-flex size-2 rounded-full bg-gold-400" />
-            </span>
-            Now open for registration
-          </div>
         </div>
 
         <div className="grid items-start gap-10 lg:grid-cols-[1.15fr_.85fr] lg:gap-12">
@@ -71,7 +62,13 @@ export default function HomeBridge() {
           </div>
 
           <div className="rounded-[18px] border border-cream/15 bg-green-900/40 px-7 py-6">
-            <h4 className="mb-3.5 text-[16px] text-cream">Cooperative details</h4>
+            <div className="mb-3.5 flex items-center justify-between gap-4">
+              <h4 className="m-0 text-[16px] text-cream">Cooperative details</h4>
+              <span className="inline-flex items-center gap-2 text-[12.5px] font-semibold text-gold-400">
+                <span className="size-2 rounded-full bg-gold-400" />
+                Open for registration
+              </span>
+            </div>
             {details.map((d) => (
               <div
                 key={d.label}

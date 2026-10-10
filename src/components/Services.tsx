@@ -55,7 +55,7 @@ const services: { icon: LucideIcon; title: string; text: string }[] = [
 
 export default function Services() {
   return (
-    <section id="services" className="border-y border-line bg-cream-dim py-12 lg:py-10">
+    <section id="services" className="section-screen border-y border-line bg-cream-dim py-12 lg:py-10">
       <div className="wrap">
         <div className="mb-6 max-w-[640px]">
           <div className="eyebrow">Business areas</div>
