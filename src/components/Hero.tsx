@@ -15,8 +15,8 @@ const stats = [
 export default function Hero() {
   return (
     <section
-      id="top"
-      className="relative overflow-hidden pt-24 pb-[110px] text-cream"
+      id="home"
+      className="relative overflow-hidden py-12 text-cream"
       style={{
         background:
           "radial-gradient(ellipse 900px 500px at 85% -10%, rgba(201,151,43,.18), transparent 60%), linear-gradient(180deg, var(--color-green-900), var(--color-green-700) 70%)",
@@ -24,16 +24,15 @@ export default function Hero() {
     >
       <div className="wrap grid items-center gap-14 lg:grid-cols-[1.15fr_.85fr]">
         <div>
-          <h1 className="text-[clamp(34px,4.6vw,56px)] text-cream">
-            Building trade, property <em className="text-gold-400 not-italic">&amp; people</em> across Nigeria and
-            the diaspora.
+          <h1 className="text-[clamp(32px,3.8vw,50px)] text-cream">
+            Building trade, property <em className="text-gold-400 not-italic">&amp; people</em> across Nigeria and the
+            diaspora.
           </h1>
-          <p className="max-w-[46ch] text-[18px] text-[#DCE4DD]">
+          <p className="max-w-[54ch] text-[18px] text-[#DCE4DD]">
             VEKAT Nig Ltd is a diversified consultancy and trading group working across import &amp; export, real
-            estate, healthcare, agriculture and business advisory — and the umbrella behind the Home Bridge
-            Cooperative.
+            estate, healthcare, agriculture and business advisory — and the umbrella behind the Home Bridge Cooperative.
           </p>
-          <div className="mt-7 flex flex-wrap gap-3.5">
+          <div className="mt-6 flex flex-wrap gap-3.5">
             <a href="#homebridge" className="btn btn-primary">
               Explore Home Bridge Cooperative
             </a>
@@ -41,7 +40,7 @@ export default function Hero() {
               Talk to Us
             </a>
           </div>
-          <div className="mt-12 grid max-w-[600px] grid-cols-3 divide-x divide-cream/15 border-t border-cream/15 pt-6">
+          <div className="mt-8 grid max-w-[600px] grid-cols-3 divide-x divide-cream/15 border-t border-cream/15 pt-5">
             {stats.map((s) => (
               <div key={s.label} className="px-3 first:pl-0 sm:px-6">
                 <b className="block font-display whitespace-nowrap text-[clamp(17px,2.4vw,26px)] leading-tight font-semibold text-gold-400">

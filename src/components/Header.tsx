@@ -14,10 +14,11 @@ const navLinks = [
 export default function Header() {
   const [open, setOpen] = useState(false);
 
+  // The negative sticky top equals the top bar's height, so the bar scrolls away and only the nav stays pinned.
   return (
-    <header className="sticky top-0 z-50 border-b border-line bg-cream/92 backdrop-blur-[8px]">
+    <header className="sticky -top-[60px] z-50 border-b border-line bg-cream/92 backdrop-blur-[8px] sm:-top-[34px]">
       <div className="bg-green-900 text-[13.5px] font-medium text-cream">
-        <div className="wrap flex flex-wrap items-center justify-center gap-x-[18px] gap-y-1.5 py-[7px] text-center md:justify-between md:text-left">
+        <div className="wrap flex h-[60px] flex-wrap content-center items-center justify-center gap-x-[18px] gap-y-1 text-center sm:h-[34px] md:justify-between md:text-left">
           <div>
             <a href="mailto:admin@vekat.org" className="text-cream no-underline opacity-90 hover:opacity-100">
               admin@vekat.org
@@ -33,16 +34,20 @@ export default function Header() {
         </div>
       </div>
 
-      <nav className="wrap flex items-center justify-between py-3.5">
+      <nav className="wrap flex h-16 items-center justify-between sm:h-[72px]">
         <div className="xl:flex-1">
-          <a href="#top" className="inline-flex items-center gap-2.5 align-middle no-underline" onClick={() => setOpen(false)}>
+          <a
+            href="#top"
+            className="inline-flex items-center gap-2.5 align-middle no-underline"
+            onClick={() => setOpen(false)}
+          >
             <Image
               src="/vekat-logo.png"
               alt="VEKAT Nig Ltd"
               width={1628}
               height={600}
               priority
-              className="h-[42px] w-auto"
+              className="h-10 w-auto"
             />
           </a>
         </div>
@@ -68,7 +73,7 @@ export default function Header() {
         <div className="flex items-center justify-end gap-2.5 xl:flex-1">
           <a
             href="#register"
-            className="btn btn-primary px-11 py-4 text-[16px] font-bold whitespace-nowrap max-sm:px-5 max-sm:py-2.5 max-sm:text-[14px]"
+            className="btn btn-primary px-9 py-3 text-[15.5px] font-bold whitespace-nowrap max-sm:px-5 max-sm:py-2.5 max-sm:text-[14px]"
           >
             Registration
           </a>

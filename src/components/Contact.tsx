@@ -9,11 +9,11 @@ const channels: { icon: LucideIcon; label: string; value: string; href?: string 
 
 export default function Contact() {
   return (
-    <section id="contact" className="border-t border-line bg-cream-dim py-[60px] md:py-24">
+    <section id="contact" className="border-t border-line bg-cream-dim py-12 lg:py-14">
       <div className="wrap grid items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-16">
         <div>
           <div className="eyebrow">Get in touch</div>
-          <h2 className="text-[clamp(28px,3.4vw,38px)]">Talk to VEKAT Nig Ltd</h2>
+          <h2 className="text-[clamp(26px,2.6vw,34px)]">Talk to VEKAT Nig Ltd</h2>
           <p className="max-w-[44ch] text-[16px] text-muted">
             For partnerships, business enquiries or questions about the Home Bridge Cooperative, reach the team
             directly by email or phone.

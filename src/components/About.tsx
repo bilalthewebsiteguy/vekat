@@ -13,11 +13,11 @@ const directors = ["Evbuomwan Victor Ekhorutomwen", "Okonofua Sebastine"];
 
 export default function About() {
   return (
-    <section id="about" className="py-[60px] md:py-24">
+    <section id="about" className="py-12 lg:py-14">
       <div className="wrap grid items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-16">
         <div>
           <div className="eyebrow">About the company</div>
-          <h2 className="text-[clamp(28px,3.4vw,38px)]">
+          <h2 className="text-[clamp(26px,2.6vw,34px)]">
             A private Nigerian company built for diversified, cross-sector growth.
           </h2>
           <p className="text-[16px] text-muted">

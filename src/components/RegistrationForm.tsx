@@ -12,7 +12,7 @@ const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/8x214nbjMdZg2gddNI8IU00";
 type Status = { kind: "ok" | "err"; message: string } | null;
 
 const inputClass =
-  "rounded-[9px] border-[1.5px] border-line bg-cream px-[13px] py-[11px] font-sans leading-[normal] text-[14.5px] text-ink outline-none transition-colors duration-150 focus:border-gold-500";
+  "rounded-[9px] border-[1.5px] border-line bg-cream px-[13px] py-2 font-sans leading-[normal] text-[14.5px] text-ink outline-none transition-colors duration-150 focus:border-gold-500";
 const labelClass = "text-[13px] font-semibold text-green-700";
 
 export default function RegistrationForm() {
@@ -76,9 +76,11 @@ export default function RegistrationForm() {
   }
 
   return (
-    <div className="rounded-[20px] border border-line bg-white p-[34px] shadow-[0_20px_50px_rgba(27,67,50,.08)]">
-      <h3 className="mb-1 text-[21px]">Member Registration</h3>
-      <p className="mb-[26px] text-[14px] text-muted">Fields marked * are required.</p>
+    <div className="rounded-[20px] border border-line bg-white p-6 lg:p-7 shadow-[0_20px_50px_rgba(27,67,50,.08)]">
+      <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 className="m-0 text-[21px]">Member Registration</h3>
+        <p className="m-0 text-[13px] text-muted">Fields marked * are required</p>
+      </div>
 
       {status && (
         <div
@@ -94,9 +96,16 @@ export default function RegistrationForm() {
       )}
 
       <form onSubmit={handleSubmit}>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
           <Field id="fullName" label="Full name *">
-            <input type="text" id="fullName" name="fullName" required placeholder="As on your ID" className={inputClass} />
+            <input
+              type="text"
+              id="fullName"
+              name="fullName"
+              required
+              placeholder="As on your ID"
+              className={inputClass}
+            />
           </Field>
           <Field id="email" label="Email address *">
             <input type="email" id="email" name="email" required placeholder="you@example.com" className={inputClass} />
@@ -114,16 +123,16 @@ export default function RegistrationForm() {
               className={inputClass}
             />
           </Field>
-          <div className="mb-4 flex flex-col gap-1.5 md:col-span-2">
+          <div className="flex flex-col gap-1.5">
             <span className={labelClass}>Membership type *</span>
-            <div className="flex flex-wrap gap-[18px]">
+            <div className="flex flex-wrap gap-2.5">
               {[
-                { value: "Diaspora", label: "Diaspora member" },
-                { value: "Local Nigeria", label: "Local (Nigeria) member" },
+                { value: "Diaspora", label: "Diaspora" },
+                { value: "Local Nigeria", label: "Local" },
               ].map((opt) => (
                 <label
                   key={opt.value}
-                  className="flex min-w-[140px] flex-1 cursor-pointer items-center gap-[7px] rounded-[9px] border-[1.5px] border-line px-3.5 py-[9px] text-[14px]"
+                  className="flex min-w-[120px] flex-1 cursor-pointer items-center gap-[7px] rounded-[9px] border-[1.5px] border-line px-3 py-[9px] text-[14px]"
                 >
                   <input type="radio" name="memberType" value={opt.value} required className="accent-green-700" />{" "}
                   {opt.label}
@@ -131,25 +140,25 @@ export default function RegistrationForm() {
               ))}
             </div>
           </div>
-          <Field id="location" label="City / State (Nigeria) or City / Country (diaspora) *" full>
+          <Field id="location" label="City / State or City / Country *">
             <input
               type="text"
               id="location"
               name="location"
               required
-              placeholder="e.g. Benin City, Edo State — or London, UK"
+              placeholder="e.g. Benin City or London, UK"
               className={inputClass}
             />
           </Field>
-          <Field id="occupation" label="Occupation / line of business" full>
+          <Field id="occupation" label="Occupation / line of business">
             <input type="text" id="occupation" name="occupation" placeholder="Optional" className={inputClass} />
           </Field>
-          <Field id="notes" label="Anything else we should know?" full>
-            <textarea id="notes" name="notes" rows={3} placeholder="Optional" className={inputClass} />
+          <Field id="notes" label="Anything else we should know?">
+            <input type="text" id="notes" name="notes" placeholder="Optional" className={inputClass} />
           </Field>
         </div>
 
-        <label className="mt-1.5 mb-5 flex items-start gap-2.5 text-[13px] text-muted">
+        <label className="mt-4 mb-4 flex items-start gap-2.5 text-[13px] text-muted">
           <input type="checkbox" id="consent" name="consent" required className="mt-[3px] accent-green-700" />
           <span>
             I confirm the details above are accurate and I agree to be contacted by VEKAT Nig Ltd / Home Bridge
@@ -157,14 +166,13 @@ export default function RegistrationForm() {
           </span>
         </label>
 
-        <div className="flex flex-col gap-3">
-          <button type="submit" disabled={submitting} className="btn btn-primary justify-center disabled:opacity-70">
-            {submitting ? "Submitting…" : "Submit Registration"}
-          </button>
-          <p className="text-center text-[12.5px] text-muted">
-            Your information is submitted directly to the cooperative&apos;s membership records.
-          </p>
-        </div>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="btn btn-primary w-full justify-center disabled:opacity-70"
+        >
+          {submitting ? "Submitting…" : "Submit Registration"}
+        </button>
       </form>
 
       {showPay && (
@@ -199,7 +207,7 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`mb-4 flex flex-col gap-1.5 ${full ? "md:col-span-2" : ""}`}>
+    <div className={`flex flex-col gap-1.5 ${full ? "md:col-span-2" : ""}`}>
       <label htmlFor={id} className={labelClass}>
         {label}
       </label>

@@ -19,10 +19,10 @@
 @layer base {
   html {
     scroll-behavior: smooth;
-    /* Height of the sticky header, so anchored sections land just below it. */
-    scroll-padding-top: 137px;
+    /* Height of the pinned nav (the top bar scrolls away), so anchored sections land just below it. */
+    scroll-padding-top: 65px;
     @variant sm {
-      scroll-padding-top: 124px;
+      scroll-padding-top: 73px;
     }
   }
   body {
