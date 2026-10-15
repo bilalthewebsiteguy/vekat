@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Status = { kind: "ok" | "err"; message: string } | null;
 
@@ -82,7 +82,7 @@ const INITIAL: Values = {
   signature: "",
 };
 
-export default function RegistrationForm() {
+export default function RegistrationForm({ sessionId = "" }: { sessionId?: string }) {
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<Values>(INITIAL);
   const [errors, setErrors] = useState<string[]>([]);
@@ -91,7 +91,35 @@ export default function RegistrationForm() {
   const [done, setDone] = useState(false);
   const [reference, setReference] = useState("");
   const [payError, setPayError] = useState("");
+  // Passed down from the server, so the first render matches on both sides.
+  const [paidResult, setPaidResult] = useState<"checking" | "paid" | "unpaid" | null>(sessionId ? "checking" : null);
   const [paying, setPaying] = useState(false);
+
+  // Coming back from Stripe: confirm the payment with Stripe itself, so the fee is recorded even
+  // before the webhook endpoint exists. The session id alone proves nothing — the server checks it.
+  useEffect(() => {
+    if (!sessionId) return;
+
+    let cancelled = false;
+    fetch("/api/payments/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    })
+      .then((r) => r.json())
+      .then((d: { paid?: boolean; reference?: string }) => {
+        if (cancelled) return;
+        setPaidResult(d.paid ? "paid" : "unpaid");
+        if (d.reference) setReference(d.reference);
+      })
+      .catch(() => !cancelled && setPaidResult("unpaid"));
+
+    // Keep the reference but drop the query string, so a refresh doesn't re-run this.
+    window.history.replaceState({}, "", `${window.location.pathname}#register`);
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
 
   async function startCardPayment() {
     setPaying(true);
@@ -202,6 +230,41 @@ export default function RegistrationForm() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (paidResult) {
+    return (
+      <div
+        ref={topRef}
+        className="rounded-[20px] border border-line bg-white p-6 shadow-[0_20px_50px_rgba(27,67,50,.08)] lg:p-7"
+      >
+        {paidResult === "checking" && <h3 className="m-0 text-[21px]">Checking your payment…</h3>}
+        {paidResult === "paid" && (
+          <>
+            <h3 className="m-0 text-[21px]">Payment received</h3>
+            <p className="mt-3 mb-0 text-[14.5px] text-muted">
+              Thank you. Your £10 registration fee has been received and matched to your membership
+              {reference ? (
+                <>
+                  {" "}
+                  reference <strong className="font-mono text-green-700">{reference}</strong>
+                </>
+              ) : null}
+              . It now shows as verified to the membership team — you do not need to email a receipt.
+            </p>
+          </>
+        )}
+        {paidResult === "unpaid" && (
+          <>
+            <h3 className="m-0 text-[21px]">We could not confirm that payment</h3>
+            <p className="mt-3 mb-0 text-[14.5px] text-muted">
+              If you completed the payment, it may still be processing — it will be matched to your registration shortly. If you were
+              charged and nothing changes, email admin@vekat.org with your reference.
+            </p>
+          </>
+        )}
+      </div>
+    );
   }
 
   if (done) {

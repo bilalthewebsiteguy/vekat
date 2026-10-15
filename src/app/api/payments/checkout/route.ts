@@ -54,7 +54,9 @@ export async function POST(req: Request) {
         },
       ],
       metadata: { reference: member.reference, purpose: "registration_fee" },
-      success_url: `${origin}/?paid=1&ref=${encodeURIComponent(member.reference)}#register`,
+      // The session id comes back so the return page can confirm the payment with Stripe directly,
+      // which means a fee is recorded even before the webhook endpoint is set up.
+      success_url: `${origin}/?paid=1&session_id={CHECKOUT_SESSION_ID}#register`,
       cancel_url: `${origin}/?paid=0#register`,
     });
 

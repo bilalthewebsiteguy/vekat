@@ -20,7 +20,7 @@ const steps = [
   },
 ];
 
-export default function Register() {
+export default function Register({ sessionId = "" }: { sessionId?: string }) {
   return (
     <section id="register" className="section-screen bg-cream py-12 lg:py-8">
       <div className="wrap grid items-start gap-10 lg:gap-14 lg:grid-cols-[.9fr_1.1fr]">
@@ -54,7 +54,7 @@ export default function Register() {
           </p>
         </div>
 
-        <RegistrationForm />
+        <RegistrationForm sessionId={sessionId} />
       </div>
     </section>
   );

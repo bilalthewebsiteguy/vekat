@@ -46,6 +46,18 @@ The webhook signature is checked before any field is trusted: anyone can POST to
 without the check a forged request could mark any fee as paid. Repeated events are ignored, because
 Stripe can send the same event more than once.
 
+### On Vercel
+
+Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in the project's environment variables, then
+redeploy (environment changes do not apply to an existing deployment). To get the webhook secret:
+Stripe dashboard → Developers → Webhooks → Add endpoint → `https://<your-site>/api/payments/webhook`,
+select `checkout.session.completed`, save, and copy the signing secret it shows.
+
+A payment is recorded even before that webhook exists: when the payer returns from Stripe the site
+asks Stripe whether that session was actually paid (`/api/payments/confirm`). The session id alone
+proves nothing — the answer comes from Stripe — but this only runs if the payer comes back, which is
+why the webhook is still the reliable path.
+
 ### Testing locally
 
 ```bash
