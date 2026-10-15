@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type Status = { kind: "ok" | "err"; message: string } | null;
-
 /** Field ids, in the order they appear, so a server rejection can name the step to go back to. */
 const FIELD_STEP: Record<string, number> = {
   email: 0, memberType: 0, cohort: 0,
@@ -86,14 +84,11 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<Values>(INITIAL);
   const [errors, setErrors] = useState<string[]>([]);
-  const [status, setStatus] = useState<Status>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
   const [reference, setReference] = useState("");
-  const [payError, setPayError] = useState("");
-  // Passed down from the server, so the first render matches on both sides.
+  const [toast, setToast] = useState<{ kind: "ok" | "err"; title: string; body?: string } | null>(null);
+  // sessionId is passed down from the server, so the first render matches on both sides.
   const [paidResult, setPaidResult] = useState<"checking" | "paid" | "unpaid" | null>(sessionId ? "checking" : null);
-  const [paying, setPaying] = useState(false);
 
   // Coming back from Stripe: confirm the payment with Stripe itself, so the fee is recorded even
   // before the webhook endpoint exists. The session id alone proves nothing — the server checks it.
@@ -121,27 +116,39 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
     };
   }, [sessionId]);
 
-  async function startCardPayment() {
-    setPaying(true);
-    setPayError("");
+  // Clears itself, so the page is not left with a stale message.
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), toast.kind === "ok" ? 12000 : 9000);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  async function startCardPayment(ref = reference) {
     try {
       const res = await fetch("/api/payments/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reference }),
+        body: JSON.stringify({ reference: ref }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
       if (res.ok && data.ok && data.url) {
         window.location.href = data.url;
         return;
       }
-      setPayError(data.error || "Could not start the payment. Please try again.");
+      setToast({
+        kind: "err",
+        title: "We could not open the payment page",
+        body: `${data.error || "Please try again."} Your registration ${ref} was saved.`,
+      });
     } catch {
-      setPayError("Could not reach the payment page. Please try again.");
-    } finally {
-      setPaying(false);
+      setToast({
+        kind: "err",
+        title: "We could not reach the payment page",
+        body: `Your registration ${ref} was saved. Please try again in a moment.`,
+      });
     }
   }
+
   const topRef = useRef<HTMLDivElement>(null);
 
   const set = (name: string, value: string | string[]) => {
@@ -172,7 +179,6 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
 
   function goTo(index: number) {
     setStep(index);
-    setStatus(null);
     requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
@@ -190,7 +196,6 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
     if (!validate(step)) return;
 
     setSubmitting(true);
-    setStatus(null);
     try {
       const res = await fetch("/api/register", {
         method: "POST",
@@ -201,8 +206,25 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
 
       if (res.ok && data.ok && data.reference) {
         setReference(data.reference);
-        setDone(true);
+        setValues(INITIAL);
+        setErrors([]);
+        setStep(0);
+        setToast(
+          isDiaspora
+            ? {
+                kind: "ok",
+                title: `Registration received — ${data.reference}`,
+                body: "Taking you to the payment page for your £10 registration fee…",
+              }
+            : {
+                kind: "ok",
+                title: `Registration received — ${data.reference}`,
+                body: "Keep your reference. Pay ₦10,000 to VEKAT Nigeria Limited, First Bank 2049483671, using it as the reference.",
+              },
+        );
         requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+        // Diaspora members pay by card, so go straight there rather than making them find a button.
+        if (isDiaspora) void startCardPayment(data.reference);
         return;
       }
 
@@ -212,22 +234,24 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
         const target = FIELD_STEP[first] ?? 0;
         setErrors(data.fields);
         setStep(target);
-        setStatus({ kind: "err", message: "Some answers need checking — we've marked them below." });
+        setToast({ kind: "err", title: "Some answers need checking", body: "We've marked them below." });
         requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
         return;
       }
 
-      setStatus({
+      setToast({
         kind: "err",
-        message:
+        title: "We could not send your registration",
+        body:
           res.status === 503
             ? "Registrations aren't being accepted just now. Please try again later, or email admin@vekat.org."
-            : "Something went wrong sending your registration. Please try again, or email admin@vekat.org.",
+            : "Please try again, or email admin@vekat.org.",
       });
     } catch {
-      setStatus({
+      setToast({
         kind: "err",
-        message: "We couldn't reach the server. Your answers are still here — please try again in a moment.",
+        title: "We could not reach the server",
+        body: "Your answers are still here — please try again in a moment.",
       });
     } finally {
       setSubmitting(false);
@@ -269,55 +293,6 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
     );
   }
 
-  if (done) {
-    return (
-      <div
-        ref={topRef}
-        className="rounded-[20px] border border-line bg-white p-6 shadow-[0_20px_50px_rgba(27,67,50,.08)] lg:p-7"
-      >
-        <h3 className="m-0 text-[21px]">Registration received</h3>
-        {reference && (
-          <p className="mt-3 mb-0 text-[14.5px] text-muted">
-            Your reference is <strong className="font-mono text-green-700">{reference}</strong>. Keep it — quote it in any email about your
-            membership.
-          </p>
-        )}
-        <p className="mt-3 text-[14.5px] text-muted">
-          Thank you. VEKAT Nigeria Limited will carry out identity checks and vetting, and the Membership Committee
-          makes the final decision. You will hear from us by email.
-        </p>
-        <p className="m-0 text-[14.5px] text-muted">
-          If you have not paid your registration fee yet, please complete it now.
-        </p>
-        <div className="mt-4">
-          {isDiaspora ? (
-            <>
-              <button
-                type="button"
-                onClick={startCardPayment}
-                disabled={paying || !reference}
-                className="btn btn-primary w-full justify-center disabled:opacity-70"
-              >
-                {paying ? "Opening payment page…" : "Pay £10 Registration Fee →"}
-              </button>
-              {payError && (
-                <p role="alert" className="mt-3 mb-0 text-[13.5px] font-medium text-[#8A3131]">
-                  {payError}
-                </p>
-              )}
-              <p className="mt-3 mb-0 text-[13px] text-muted">
-                You pay by card on Stripe&apos;s secure page. Your payment is matched to reference{" "}
-                <strong className="font-mono text-green-700">{reference}</strong> automatically.
-              </p>
-            </>
-          ) : (
-            <BankDetails />
-          )}
-        </div>
-      </div>
-    );
-  }
-
   const isLast = step === STEPS.length - 1;
 
   return (
@@ -325,6 +300,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
       ref={topRef}
       className="rounded-[20px] border border-line bg-white p-6 shadow-[0_20px_50px_rgba(27,67,50,.08)] lg:p-7"
     >
+      <Toast toast={toast} onClose={() => setToast(null)} />
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h3 className="m-0 text-[21px]">Member Registration</h3>
         <p className="m-0 text-[13px] text-muted">
@@ -340,19 +316,6 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
           />
         ))}
       </div>
-
-      {status && (
-        <div
-          role="status"
-          className={`mb-4 rounded-[10px] border px-4 py-[13px] text-[14px] ${
-            status.kind === "ok"
-              ? "border-[#BFDAC8] bg-[#EAF3EC] text-green-700"
-              : "border-[#F0C4C4] bg-[#FBEAEA] text-[#8A3131]"
-          }`}
-        >
-          {status.message}
-        </div>
-      )}
 
       {errors.length > 0 && (
         <div
@@ -665,6 +628,49 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+/**
+ * Fixed to the corner so it is seen wherever the page is scrolled. role="status" announces it to a
+ * screen reader without stealing focus, which matters when it appears after a submit.
+ */
+function Toast({ toast, onClose }: { toast: { kind: "ok" | "err"; title: string; body?: string } | null; onClose: () => void }) {
+  if (!toast) return null;
+  const ok = toast.kind === "ok";
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed right-4 bottom-4 z-50 w-[min(380px,calc(100vw-2rem))]"
+    >
+      <div
+        className={`flex gap-3 rounded-[14px] border px-4 py-3.5 shadow-[0_12px_32px_rgba(27,67,50,.18)] ${
+          ok ? "border-[#BFDAC8] bg-[#EAF3EC]" : "border-[#F0C4C4] bg-[#FBEAEA]"
+        }`}
+      >
+        <span
+          aria-hidden
+          className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-[12px] font-bold text-white ${
+            ok ? "bg-green-700" : "bg-[#8A3131]"
+          }`}
+        >
+          {ok ? "\u2713" : "!"}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className={`m-0 text-[14.5px] font-semibold ${ok ? "text-green-700" : "text-[#8A3131]"}`}>{toast.title}</p>
+          {toast.body && <p className="mt-1 mb-0 text-[13.5px] leading-snug text-muted">{toast.body}</p>}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Dismiss"
+          className="-mt-1 -mr-1 size-8 shrink-0 cursor-pointer rounded-full text-[18px] leading-none text-muted hover:bg-black/5"
+        >
+          &times;
+        </button>
+      </div>
     </div>
   );
 }
