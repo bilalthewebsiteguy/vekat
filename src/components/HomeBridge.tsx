@@ -12,7 +12,7 @@ const details = [
   { label: "Head office", value: "Benin City, Edo State" },
   { label: "Start cohort", value: "Abuja FCT & Edo State" },
   { label: "Membership", value: "Diaspora & local" },
-  { label: "Enquiries", value: "info@homebridge.org" },
+  { label: "Enquiries", value: "info@homebridgecooperative.org" },
 ];
 
 export default function HomeBridge() {
@@ -55,7 +55,7 @@ export default function HomeBridge() {
               <a href="#register" className="btn btn-primary">
                 Register as a Member
               </a>
-              <a href="mailto:info@homebridge.org" className="btn btn-outline-light">
+              <a href="mailto:info@homebridgecooperative.org" className="btn btn-outline-light">
                 Email the Cooperative
               </a>
             </div>

@@ -20,8 +20,8 @@ export default function Header() {
       <div className="bg-green-900 text-[13.5px] font-medium text-cream">
         <div className="wrap flex h-[60px] flex-wrap content-center items-center justify-center gap-x-[18px] gap-y-1 text-center sm:h-[34px] md:justify-between md:text-left">
           <div>
-            <a href="mailto:admin@vekat.org" className="text-cream no-underline opacity-90 hover:opacity-100">
-              admin@vekat.org
+            <a href="mailto:info@homebridgecooperative.org" className="text-cream no-underline opacity-90 hover:opacity-100">
+              info@homebridgecooperative.org
             </a>
             <span className="mx-3 opacity-80">•</span>
             <a href="tel:+2348105832602" className="text-cream no-underline opacity-90 hover:opacity-100">

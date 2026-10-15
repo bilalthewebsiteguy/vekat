@@ -16,13 +16,13 @@ const columns = [
     links: [
       { href: "#homebridge", label: "About the Cooperative" },
       { href: "#register", label: "Member Registration" },
-      { href: "mailto:info@homebridge.org", label: "info@homebridge.org" },
+      { href: "mailto:info@homebridgecooperative.org", label: "info@homebridgecooperative.org" },
     ],
   },
   {
     title: "CONTACT",
     links: [
-      { href: "mailto:admin@vekat.org", label: "admin@vekat.org" },
+      { href: "mailto:info@homebridgecooperative.org", label: "info@homebridgecooperative.org" },
       { href: "tel:+2348105832602", label: "+234 810 583 2602" },
     ],
   },

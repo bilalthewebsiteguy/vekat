@@ -1,9 +1,8 @@
-import { ArrowUpRight, Mail, MapPin, Phone, Users, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, Mail, MapPin, Phone, type LucideIcon } from "lucide-react";
 
 const channels: { icon: LucideIcon; label: string; value: string; href?: string }[] = [
-  { icon: Mail, label: "General enquiries", value: "admin@vekat.org", href: "mailto:admin@vekat.org" },
+  { icon: Mail, label: "General enquiries", value: "info@homebridgecooperative.org", href: "mailto:info@homebridgecooperative.org" },
   { icon: Phone, label: "Phone", value: "+234 810 583 2602", href: "tel:+2348105832602" },
-  { icon: Users, label: "Home Bridge Cooperative", value: "info@homebridge.org", href: "mailto:info@homebridge.org" },
   { icon: MapPin, label: "Office", value: "Abuja, Federal Capital Territory, Nigeria" },
 ];
 
@@ -18,7 +17,7 @@ export default function Contact() {
             For partnerships, business enquiries or questions about the Home Bridge Cooperative, reach the team
             directly by email or phone.
           </p>
-          <a href="mailto:admin@vekat.org" className="btn btn-primary mt-4">
+          <a href="mailto:info@homebridgecooperative.org" className="btn btn-primary mt-4">
             Email us
           </a>
         </div>

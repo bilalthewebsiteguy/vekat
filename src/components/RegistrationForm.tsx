@@ -285,8 +285,8 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
         title: "We could not send your registration",
         body:
           res.status === 503
-            ? "Registrations aren't being accepted just now. Please try again later, or email admin@vekat.org."
-            : "Please try again, or email admin@vekat.org.",
+            ? "Registrations aren't being accepted just now. Please try again later, or email info@homebridgecooperative.org."
+            : "Please try again, or email info@homebridgecooperative.org.",
       });
     } catch {
       setToast({
@@ -326,7 +326,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
             <h3 className="m-0 text-[21px]">We could not confirm that payment</h3>
             <p className="mt-3 mb-0 text-[14.5px] text-muted">
               If you completed the payment, it may still be processing — it will be matched to your registration shortly. If you were
-              charged and nothing changes, email admin@vekat.org with your reference.
+              charged and nothing changes, email info@homebridgecooperative.org with your reference.
             </p>
           </>
         )}
@@ -523,7 +523,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
             <Text name="idNumber" label="ID number *" values={values} errors={errors} set={set} full />
             <Confirm
               name="idDocsConfirmed"
-              label="I have emailed (or will email within 7 days) a copy of my ID and proof of address to admin@vekat.org"
+              label="I have emailed (or will email within 7 days) a copy of my ID and proof of address to info@homebridgecooperative.org"
               values={values}
               errors={errors}
               set={set}
@@ -594,7 +594,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
             </div>
             <Confirm
               name="receiptConfirmed"
-              label="I have emailed my payment receipt to admin@vekat.org"
+              label="I have emailed my payment receipt to info@homebridgecooperative.org"
               values={values}
               errors={errors}
               set={set}

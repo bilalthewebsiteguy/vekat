@@ -47,8 +47,8 @@ export default function Register({ sessionId = "" }: { sessionId?: string }) {
             <Mail className="size-[18px] shrink-0 text-gold-500" strokeWidth={1.75} aria-hidden />
             <span>
               Questions before you join? Email{" "}
-              <a href="mailto:info@homebridge.org" className="font-medium text-green-700 hover:text-gold-500">
-                info@homebridge.org
+              <a href="mailto:info@homebridgecooperative.org" className="font-medium text-green-700 hover:text-gold-500">
+                info@homebridgecooperative.org
               </a>
             </span>
           </p>
