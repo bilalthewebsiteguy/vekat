@@ -13,18 +13,28 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Registration storage
 
-The Home Bridge registration form posts to a Google Apps Script Web App that appends each submission to a Google Sheet (see the developer brief, Section 3, for the Sheet and `Code.gs` setup).
+The Home Bridge registration form posts to `/api/register`, which stores each registration in
+MongoDB. The HomeBridge site (`homebridgecooperative.org`) points at the **same** database, so
+someone who registers on either site has one record and one reference: people are matched by email
+or phone. Registrations from both sites appear in the HomeBridge admin queue.
 
-Once deployed, copy `.env.example` to `.env.local` (or set it in your host's environment variables):
+Copy `.env.example` to `.env.local` (or set it in your host's environment variables):
 
 ```bash
-NEXT_PUBLIC_REGISTRATION_ENDPOINT=https://script.google.com/macros/s/XXXXXXXX/exec
+MONGODB_URI=mongodb+srv://USER:PASSWORD@cluster.example.mongodb.net/?retryWrites=true&w=majority
+MONGODB_DB=homebridge
 ```
 
-Until it is set, submitting the form shows a "storage isn't connected yet" message. After a successful submission the form shows the Stripe payment link.
+Until it is set, submitting the form shows a "registrations aren't being accepted just now" message.
+
+Registrations carry an ID number (BVN, NIN or passport). It is never written to a log and never sent
+back to the browser, but it is in the database — restrict who holds the Atlas credentials, turn on
+IP access lists, and agree a retention period with the client.
 
 ## Structure
 
 - `src/app/` — root layout (fonts, metadata), page, global styles/theme, favicons
+- `src/app/api/register/` — receives registrations and stores them
+- `src/lib/` — the database connection and the registration store
 - `src/components/` — one component per page section (`Header`, `Hero`, `About`, `Services`, `HomeBridge`, `Register`, `RegistrationForm`, `Contact`, `Footer`)
 - `public/` — VEKAT logo and icon

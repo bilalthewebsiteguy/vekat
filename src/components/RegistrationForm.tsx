@@ -2,14 +2,21 @@
 
 import { useRef, useState } from "react";
 
-// Google Apps Script Web App URL that appends each registration to a Google Sheet.
-// See the developer brief (Section 3) for setup; set it in .env.local / your host's env vars.
-// Looks like: https://script.google.com/macros/s/XXXXXXXX/exec
-const REGISTRATION_ENDPOINT = process.env.NEXT_PUBLIC_REGISTRATION_ENDPOINT ?? "";
-
 const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/8x214nbjMdZg2gddNI8IU00";
 
 type Status = { kind: "ok" | "err"; message: string } | null;
+
+/** Field ids, in the order they appear, so a server rejection can name the step to go back to. */
+const FIELD_STEP: Record<string, number> = {
+  email: 0, memberType: 0, cohort: 0,
+  title: 1, firstName: 1, surname: 1, dateOfBirth: 1, sex: 1, nationality: 1, occupation: 1,
+  phone: 2, homeAddress: 2, countryOfResidence: 2,
+  idType: 3, idNumber: 3, idDocsConfirmed: 3,
+  nomineeName: 4, nomineeRelationship: 4, nomineePhone: 4,
+  paymentMethod: 5, datePaid: 5, paymentReference: 5,
+  sharePlan: 6,
+  declarations: 7, signature: 7,
+};
 type Values = Record<string, string | string[]>;
 
 const inputClass =
@@ -84,6 +91,7 @@ export default function RegistrationForm() {
   const [status, setStatus] = useState<Status>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [reference, setReference] = useState("");
   const topRef = useRef<HTMLDivElement>(null);
 
   const set = (name: string, value: string | string[]) => {
@@ -129,35 +137,45 @@ export default function RegistrationForm() {
     e.preventDefault();
     if (!validate(step)) return;
 
-    if (!REGISTRATION_ENDPOINT) {
+    setSubmitting(true);
+    setStatus(null);
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; reference?: string; fields?: string[] };
+
+      if (res.ok && data.ok && data.reference) {
+        setReference(data.reference);
+        setDone(true);
+        requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+        return;
+      }
+
+      // The server checks the same answers again. If it rejects one, go back to its step.
+      if (res.status === 422 && data.fields?.length) {
+        const first = data.fields[0];
+        const target = FIELD_STEP[first] ?? 0;
+        setErrors(data.fields);
+        setStep(target);
+        setStatus({ kind: "err", message: "Some answers need checking — we've marked them below." });
+        requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+        return;
+      }
+
       setStatus({
         kind: "err",
         message:
-          "Registration storage isn't connected yet — see the developer brief to finish setup (NEXT_PUBLIC_REGISTRATION_ENDPOINT).",
+          res.status === 503
+            ? "Registrations aren't being accepted just now. Please try again later, or email admin@vekat.org."
+            : "Something went wrong sending your registration. Please try again, or email admin@vekat.org.",
       });
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await fetch(REGISTRATION_ENDPOINT, {
-        method: "POST",
-        mode: "no-cors", // Apps Script web apps don't return readable CORS headers
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          ...values,
-          alsoInterested: (values.alsoInterested as string[]).join("; "),
-          declarations: (values.declarations as string[]).length === DECLARATIONS.length ? "All accepted" : "Incomplete",
-          submittedAt: new Date().toISOString(),
-          source: "vekat.org website",
-        }),
-      });
-      setDone(true);
-      requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     } catch {
       setStatus({
         kind: "err",
-        message: "Something went wrong sending your registration. Please try again, or email info@vekat.org directly.",
+        message: "We couldn't reach the server. Your answers are still here — please try again in a moment.",
       });
     } finally {
       setSubmitting(false);
@@ -171,6 +189,12 @@ export default function RegistrationForm() {
         className="rounded-[20px] border border-line bg-white p-6 shadow-[0_20px_50px_rgba(27,67,50,.08)] lg:p-7"
       >
         <h3 className="m-0 text-[21px]">Registration received</h3>
+        {reference && (
+          <p className="mt-3 mb-0 text-[14.5px] text-muted">
+            Your reference is <strong className="font-mono text-green-700">{reference}</strong>. Keep it — quote it in any email about your
+            membership.
+          </p>
+        )}
         <p className="mt-3 text-[14.5px] text-muted">
           Thank you. VEKAT Nigeria Limited will carry out identity checks and vetting, and the Membership Committee
           makes the final decision. You will hear from us by email.
