@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { PAYMENT_CHANNEL } from "./PaymentTab";
 import { livesInNigeria } from "@/lib/residence";
 
@@ -16,6 +16,28 @@ const FIELD_STEP: Record<string, number> = {
   declarations: 7, signature: 7,
 };
 type Values = Record<string, string | string[]>;
+
+/**
+ * Where an unfinished form is kept, so an accidental refresh does not lose it. sessionStorage, not
+ * localStorage: the answers include an ID number, and this copy goes when the tab is closed, so the
+ * next person on a shared computer never sees it.
+ */
+const DRAFT_KEY = "vekat-registration-draft";
+
+type Draft = { values?: Values; step?: number; pending?: string; payUrl?: string };
+
+/** Storage has no change events for its own tab, so there is nothing to subscribe to. */
+const noSubscribe = () => () => {};
+
+function readDraft() {
+  try {
+    return sessionStorage.getItem(DRAFT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+type CardState = { state: "idle" | "opening" | "waiting"; url?: string; sessionId?: string; message?: string };
 
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
 const isPhone = (v: string) => /^\+?\d{10,15}$/.test(v.replace(/[\s\-().]/g, ""));
@@ -168,18 +190,50 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
 
   // Card payment, for members abroad. The checkout opens in its own tab so nothing typed here is
   // lost; this page then learns the outcome from that tab, or by asking the server every few seconds.
-  const [card, setCard] = useState<{ state: "idle" | "opening" | "waiting"; url?: string; message?: string }>({
-    state: "idle",
-  });
-  const pendingSession = useRef("");
+  const [card, setCard] = useState<CardState>({ state: "idle" });
+
+  // Brings back an unfinished form after a refresh, including a card payment still in progress.
+  // The server and the first browser render both show the empty form; the saved draft is applied
+  // on the render after that, so the page hydrates without a mismatch.
+  const savedDraft = useSyncExternalStore(noSubscribe, readDraft, () => null);
+  const hydrated = useSyncExternalStore(noSubscribe, () => true, () => false);
+  const [draftApplied, setDraftApplied] = useState(false);
+  if (hydrated && !draftApplied) {
+    setDraftApplied(true);
+    let draft: Draft | null = null;
+    try {
+      draft = savedDraft ? (JSON.parse(savedDraft) as Draft) : null;
+    } catch {
+      // An unreadable draft: start with an empty form.
+    }
+    if (draft?.values) {
+      setValues({ ...INITIAL, ...draft.values });
+      setStep(Math.min(Math.max(Number(draft.step) || 0, 0), STEPS.length - 1));
+      if (draft.pending && !draft.values.stripeSessionId) {
+        setCard({ state: "waiting", url: draft.payUrl, sessionId: draft.pending });
+      }
+    }
+  }
+
+  // Saved on every change, once the draft has been read back, so the empty first render never
+  // overwrites it.
+  useEffect(() => {
+    if (!draftApplied) return;
+    try {
+      const pending = card.state === "waiting" ? card.sessionId : undefined;
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ values, step, pending, payUrl: pending ? card.url : undefined }));
+    } catch {
+      // Storage full or blocked: the form still works, it just will not survive a refresh.
+    }
+  }, [draftApplied, values, step, card]);
 
   useEffect(() => {
-    if (card.state !== "waiting") return;
+    const sessionId = card.sessionId ?? "";
+    if (card.state !== "waiting" || !sessionId) return;
     let stopped = false;
 
     async function check() {
-      const sessionId = pendingSession.current;
-      if (!sessionId || stopped) return;
+      if (stopped) return;
       try {
         const res = await fetch("/api/payments/confirm", {
           method: "POST",
@@ -220,7 +274,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
       channel?.close();
       window.removeEventListener("focus", check);
     };
-  }, [card.state]);
+  }, [card.state, card.sessionId]);
 
   async function payNow() {
     // Opened inside the click, before any await, so the browser does not block it as a pop-up.
@@ -234,9 +288,8 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; sessionId?: string; error?: string };
       if (!res.ok || !data.ok || !data.url || !data.sessionId) throw new Error(data.error || "Please try again.");
-      pendingSession.current = data.sessionId;
       if (tab) tab.location.href = data.url;
-      setCard({ state: "waiting", url: data.url });
+      setCard({ state: "waiting", url: data.url, sessionId: data.sessionId });
     } catch (err) {
       tab?.close();
       setCard({
@@ -315,7 +368,11 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
         setErrors([]);
         setStep(0);
         setCard({ state: "idle" });
-        pendingSession.current = "";
+        try {
+          sessionStorage.removeItem(DRAFT_KEY);
+        } catch {
+          // Nothing to clear.
+        }
         setToast({
           kind: "ok",
           title: `Registration received — ${data.reference}`,
@@ -819,7 +876,7 @@ function CardPay({
   onPay,
 }: {
   paid: boolean;
-  card: { state: "idle" | "opening" | "waiting"; url?: string; message?: string };
+  card: CardState;
   bad: boolean;
   onPay: () => void;
 }) {
