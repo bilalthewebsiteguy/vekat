@@ -2,8 +2,6 @@
 
 import { useRef, useState } from "react";
 
-const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/8x214nbjMdZg2gddNI8IU00";
-
 type Status = { kind: "ok" | "err"; message: string } | null;
 
 /** Field ids, in the order they appear, so a server rejection can name the step to go back to. */
@@ -92,6 +90,30 @@ export default function RegistrationForm() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [reference, setReference] = useState("");
+  const [payError, setPayError] = useState("");
+  const [paying, setPaying] = useState(false);
+
+  async function startCardPayment() {
+    setPaying(true);
+    setPayError("");
+    try {
+      const res = await fetch("/api/payments/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reference }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
+      if (res.ok && data.ok && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setPayError(data.error || "Could not start the payment. Please try again.");
+    } catch {
+      setPayError("Could not reach the payment page. Please try again.");
+    } finally {
+      setPaying(false);
+    }
+  }
   const topRef = useRef<HTMLDivElement>(null);
 
   const set = (name: string, value: string | string[]) => {
@@ -204,9 +226,25 @@ export default function RegistrationForm() {
         </p>
         <div className="mt-4">
           {isDiaspora ? (
-            <a href={STRIPE_PAYMENT_LINK} target="_blank" rel="noopener" className="btn btn-primary w-full justify-center">
-              Pay £10 Registration Fee →
-            </a>
+            <>
+              <button
+                type="button"
+                onClick={startCardPayment}
+                disabled={paying || !reference}
+                className="btn btn-primary w-full justify-center disabled:opacity-70"
+              >
+                {paying ? "Opening payment page…" : "Pay £10 Registration Fee →"}
+              </button>
+              {payError && (
+                <p role="alert" className="mt-3 mb-0 text-[13.5px] font-medium text-[#8A3131]">
+                  {payError}
+                </p>
+              )}
+              <p className="mt-3 mb-0 text-[13px] text-muted">
+                You pay by card on Stripe&apos;s secure page. Your payment is matched to reference{" "}
+                <strong className="font-mono text-green-700">{reference}</strong> automatically.
+              </p>
+            </>
           ) : (
             <BankDetails />
           )}
@@ -455,17 +493,11 @@ export default function RegistrationForm() {
           <Section>
             {isDiaspora ? (
               <div className="rounded-xl border border-dashed border-gold-500 bg-cream-dim p-[18px]">
-                <p className="m-0 mb-3 text-[13.5px] text-muted">
-                  Diaspora members pay a one-off, non-refundable registration fee of <strong>£10</strong> by card.
+                <p className="m-0 text-[13.5px] text-muted">
+                  Diaspora members pay a one-off, non-refundable registration fee of <strong>£10</strong> by card. You can pay it on the next
+                  screen, as soon as you have finished this form — paying there attaches the payment to your membership reference
+                  automatically. If you have already paid another way, fill in the details below.
                 </p>
-                <a
-                  href={STRIPE_PAYMENT_LINK}
-                  target="_blank"
-                  rel="noopener"
-                  className="btn btn-primary w-full justify-center"
-                >
-                  Pay £10 by card →
-                </a>
               </div>
             ) : (
               <BankDetails />

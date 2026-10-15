@@ -76,7 +76,7 @@ type MemberDoc = {
   idDocsEmailed: boolean;
 
   payment: {
-    status: "Claimed";
+    status: "Claimed" | "Verified";
     method: string;
     datePaid: string;
     reference: string;
@@ -84,6 +84,11 @@ type MemberDoc = {
     verifiedAt: Date | null;
     verifiedBy: string | null;
     amount: string | null;
+    /** Set by the payment provider's webhook, never by the applicant. */
+    provider?: string;
+    providerRef?: string;
+    /** The provider event that recorded it, so a repeated webhook cannot double-count. */
+    eventId?: string;
   };
 
   groupName: string;
@@ -160,6 +165,43 @@ async function upsertPerson(input: { name: string; email: string; phone: string 
 }
 
 /** The shape the registration form sends, already trimmed and checked by the route. */
+/** One registration, by its reference. */
+export async function findMemberByReference(reference: string) {
+  const { members } = await collections();
+  return members.findOne({ reference });
+}
+
+/**
+ * Records a verified payment against a registration. Keyed on the provider's event id, so a webhook
+ * Stripe sends twice updates the record once.
+ */
+export async function markPaymentVerified(
+  reference: string,
+  input: { amount: number | null; currency: string | null; provider: string; providerRef: string; eventId: string },
+) {
+  const { members } = await collections();
+  const amount =
+    input.amount === null
+      ? null
+      : `${(input.amount / 100).toFixed(2)} ${(input.currency ?? "").toUpperCase()}`.trim();
+
+  await members.updateOne(
+    { reference, "payment.eventId": { $ne: input.eventId } },
+    {
+      $set: {
+        "payment.status": "Verified",
+        "payment.verifiedAt": new Date(),
+        "payment.verifiedBy": `${input.provider} (automatic)`,
+        "payment.amount": amount,
+        "payment.provider": input.provider,
+        "payment.providerRef": input.providerRef,
+        "payment.eventId": input.eventId,
+        updatedAt: new Date(),
+      },
+    },
+  );
+}
+
 export type RegistrationInput = {
   email: string;
   memberType: string;
