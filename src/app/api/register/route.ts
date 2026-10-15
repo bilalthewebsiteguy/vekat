@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { isDbConfigured } from "@/lib/db";
-import { saveRegistration, type RegistrationInput } from "@/lib/registrations";
+import { isCheckoutSessionUsed, saveRegistration, type CardPayment, type RegistrationInput } from "@/lib/registrations";
+import { livesInNigeria } from "@/lib/residence";
+import { JOINING_FEE, isStripeConfigured, stripe } from "@/lib/stripe";
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
-const list = (v: unknown, max = 10) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, max) : []);
+const list = (v: unknown, max = 10) =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, max).map((x) => x.trim().slice(0, 300)) : [];
 const yes = (v: unknown) => v === true || v === "Yes";
 
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
@@ -40,8 +43,8 @@ export async function POST(req: Request) {
 
   const input: RegistrationInput = {
     email: str(body.email, 120),
-    memberType: str(body.memberType, 120),
-    cohort: str(body.cohort, 80),
+    memberType: list(body.memberType, 4),
+    cohort: list(body.cohort, 4),
     alsoInterested: list(body.alsoInterested),
     heardFrom: str(body.heardFrom, 80),
     title: str(body.title, 20),
@@ -63,7 +66,7 @@ export async function POST(req: Request) {
     nomineeName: str(body.nomineeName, 120),
     nomineeRelationship: str(body.nomineeRelationship, 60),
     nomineePhone: str(body.nomineePhone, 40),
-    paymentMethod: str(body.paymentMethod, 120),
+    paymentMethod: "",
     datePaid: str(body.datePaid, 10),
     paymentReference: str(body.paymentReference, 80),
     receiptConfirmed: yes(body.receiptConfirmed),
@@ -72,11 +75,16 @@ export async function POST(req: Request) {
     signature: str(body.signature, 120),
   };
 
+  // Members in Nigeria pay by bank transfer; members abroad pay by card during the form.
+  const byCard = !livesInNigeria(input.countryOfResidence);
+  const stripeSessionId = str(body.stripeSessionId, 200);
+  input.paymentMethod = byCard ? "Card payment (Stripe, £10)" : "Bank transfer to VEKAT First Bank 2049483671 (₦10,000)";
+
   // The browser checks each step, but a request can arrive without going through the form at all.
   const fields: string[] = [];
   if (!isEmail(input.email)) fields.push("email");
-  if (!input.memberType) fields.push("memberType");
-  if (!input.cohort) fields.push("cohort");
+  if (!input.memberType.length) fields.push("memberType");
+  if (!input.cohort.length) fields.push("cohort");
   if (!input.title) fields.push("title");
   if (input.firstName.length < 2) fields.push("firstName");
   if (input.surname.length < 2) fields.push("surname");
@@ -93,9 +101,12 @@ export async function POST(req: Request) {
   if (input.nomineeName.length < 3) fields.push("nomineeName");
   if (input.nomineeRelationship.length < 2) fields.push("nomineeRelationship");
   if (!isPhone(input.nomineePhone)) fields.push("nomineePhone");
-  if (!input.paymentMethod) fields.push("paymentMethod");
-  if (!isDate(input.datePaid)) fields.push("datePaid");
-  if (input.paymentReference.length < 3) fields.push("paymentReference");
+  if (byCard) {
+    if (!stripeSessionId.startsWith("cs_")) fields.push("stripeSessionId");
+  } else {
+    if (!isDate(input.datePaid)) fields.push("datePaid");
+    if (input.paymentReference.length < 3) fields.push("paymentReference");
+  }
   if (input.declarations.length < 7) fields.push("declarations");
   if (input.signature.length < 3) fields.push("signature");
 
@@ -113,8 +124,49 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Registration storage is not configured" }, { status: 503 });
   }
 
+  // The session id from the browser proves nothing: Stripe's own record of it decides.
+  let card: CardPayment | null = null;
+  if (byCard) {
+    if (!isStripeConfigured()) {
+      return NextResponse.json({ ok: false, error: "Card payment is not set up yet" }, { status: 503 });
+    }
+    try {
+      const session = await stripe().checkout.sessions.retrieve(stripeSessionId);
+      const fee = JOINING_FEE.diaspora;
+      const valid =
+        session.payment_status === "paid" &&
+        session.metadata?.purpose === "registration_fee" &&
+        !session.client_reference_id &&
+        session.amount_total === fee.amount &&
+        session.currency === fee.currency;
+      if (!valid || (await isCheckoutSessionUsed(session.id))) {
+        return NextResponse.json(
+          { ok: false, error: "We could not confirm your card payment", fields: ["stripeSessionId"] },
+          { status: 422 },
+        );
+      }
+      card = {
+        amount: session.amount_total,
+        currency: session.currency,
+        provider: "stripe",
+        providerRef: session.payment_intent ? String(session.payment_intent) : session.id,
+        eventId: session.id,
+      };
+    } catch (err) {
+      // An id Stripe does not know is the applicant's problem, not an outage.
+      if ((err as { type?: string }).type === "StripeInvalidRequestError") {
+        return NextResponse.json(
+          { ok: false, error: "We could not confirm your card payment", fields: ["stripeSessionId"] },
+          { status: 422 },
+        );
+      }
+      console.error("[register] could not check the card payment:", err instanceof Error ? err.message : "unknown error");
+      return NextResponse.json({ ok: false, error: "Could not check the card payment" }, { status: 502 });
+    }
+  }
+
   try {
-    const { reference } = await saveRegistration(input);
+    const { reference } = await saveRegistration(input, card);
     return NextResponse.json({ ok: true, reference });
   } catch (err) {
     // Never return the error text: a Mongo error can carry the connection string.

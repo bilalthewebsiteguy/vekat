@@ -33,8 +33,12 @@ export async function POST(req: Request) {
     const session = await stripe().checkout.sessions.retrieve(sessionId);
     const reference = session.client_reference_id || session.metadata?.reference || "";
 
-    if (session.payment_status !== "paid" || !reference) {
+    if (session.payment_status !== "paid") {
       return NextResponse.json({ ok: true, paid: false });
+    }
+    // Paid during the form, before a registration exists: it is recorded when the form is submitted.
+    if (!reference) {
+      return NextResponse.json({ ok: true, paid: true });
     }
 
     await markPaymentVerified(reference, {

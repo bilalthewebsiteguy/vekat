@@ -66,6 +66,10 @@ type MemberDoc = {
   heard: string;
   chapter: string;
   memberType: string;
+  /** Every option ticked on the form; memberType keeps the single value the HomeBridge admin reads. */
+  memberTypes: string[];
+  /** Every cohort ticked on the form; chapter holds them joined, for the HomeBridge admin. */
+  chapters: string[];
   route: string;
   routeDetail: string;
   sharePlan: string;
@@ -165,6 +169,27 @@ async function upsertPerson(input: { name: string; email: string; phone: string 
 }
 
 /** The shape the registration form sends, already trimmed and checked by the route. */
+/** "10.00 GBP" from Stripe's smallest-unit amount, as the HomeBridge admin shows it. */
+function formatAmount(amount: number | null, currency: string | null) {
+  return amount === null ? null : `${(amount / 100).toFixed(2)} ${(currency ?? "").toUpperCase()}`.trim();
+}
+
+/** A card payment already confirmed with Stripe, to be stored as verified with the registration. */
+export type CardPayment = {
+  amount: number | null;
+  currency: string | null;
+  provider: string;
+  providerRef: string;
+  /** The Checkout session id, so one payment cannot be attached to two registrations. */
+  eventId: string;
+};
+
+/** True when a Checkout session has already paid for a registration. */
+export async function isCheckoutSessionUsed(sessionId: string) {
+  const { members } = await collections();
+  return (await members.countDocuments({ "payment.eventId": sessionId }, { limit: 1 })) > 0;
+}
+
 /** One registration, by its reference. */
 export async function findMemberByReference(reference: string) {
   const { members } = await collections();
@@ -180,10 +205,7 @@ export async function markPaymentVerified(
   input: { amount: number | null; currency: string | null; provider: string; providerRef: string; eventId: string },
 ) {
   const { members } = await collections();
-  const amount =
-    input.amount === null
-      ? null
-      : `${(input.amount / 100).toFixed(2)} ${(input.currency ?? "").toUpperCase()}`.trim();
+  const amount = formatAmount(input.amount, input.currency);
 
   await members.updateOne(
     { reference, "payment.eventId": { $ne: input.eventId } },
@@ -204,8 +226,8 @@ export async function markPaymentVerified(
 
 export type RegistrationInput = {
   email: string;
-  memberType: string;
-  cohort: string;
+  memberType: string[];
+  cohort: string[];
   alsoInterested: string[];
   heardFrom: string;
   title: string;
@@ -238,7 +260,11 @@ export type RegistrationInput = {
 
 const DECLARATION_COUNT = 7;
 
-export async function saveRegistration(input: RegistrationInput, declarationCount = DECLARATION_COUNT) {
+export async function saveRegistration(
+  input: RegistrationInput,
+  card: CardPayment | null,
+  declarationCount = DECLARATION_COUNT,
+) {
   await ensureIndexes();
 
   const fullName = [input.firstName, input.otherNames, input.surname]
@@ -281,8 +307,11 @@ export async function saveRegistration(input: RegistrationInput, declarationCoun
 
     occupation: input.occupation,
     heard: input.heardFrom,
-    chapter: input.cohort,
-    memberType: input.memberType.startsWith("Home") ? "home" : "diaspora",
+    chapter: input.cohort.join(", "),
+    chapters: input.cohort,
+    // The fee route decides it: members who pay by card live abroad.
+    memberType: card ? "diaspora" : "home",
+    memberTypes: input.memberType,
     route: "",
     routeDetail: input.nigeriaAddress,
     sharePlan: input.sharePlan,
@@ -292,16 +321,30 @@ export async function saveRegistration(input: RegistrationInput, declarationCoun
     idNumber: input.idNumber,
     idDocsEmailed: input.idDocsConfirmed,
 
-    payment: {
-      status: "Claimed",
-      method: input.paymentMethod,
-      datePaid: input.datePaid,
-      reference: input.paymentReference,
-      receiptEmailed: input.receiptConfirmed,
-      verifiedAt: null,
-      verifiedBy: null,
-      amount: null,
-    },
+    payment: card
+      ? {
+          status: "Verified",
+          method: input.paymentMethod,
+          datePaid: now.toISOString().slice(0, 10),
+          reference: card.providerRef,
+          receiptEmailed: false,
+          verifiedAt: now,
+          verifiedBy: `${card.provider} (automatic)`,
+          amount: formatAmount(card.amount, card.currency),
+          provider: card.provider,
+          providerRef: card.providerRef,
+          eventId: card.eventId,
+        }
+      : {
+          status: "Claimed",
+          method: input.paymentMethod,
+          datePaid: input.datePaid,
+          reference: input.paymentReference,
+          receiptEmailed: input.receiptConfirmed,
+          verifiedAt: null,
+          verifiedBy: null,
+          amount: null,
+        },
 
     groupName: "",
     repName: "",

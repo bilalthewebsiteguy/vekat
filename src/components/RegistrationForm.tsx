@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { PAYMENT_CHANNEL } from "./PaymentTab";
+import { livesInNigeria } from "@/lib/residence";
 
 /** Field ids, in the order they appear, so a server rejection can name the step to go back to. */
 const FIELD_STEP: Record<string, number> = {
@@ -9,7 +11,7 @@ const FIELD_STEP: Record<string, number> = {
   phone: 2, homeAddress: 2, countryOfResidence: 2,
   idType: 3, idNumber: 3, idDocsConfirmed: 3,
   nomineeName: 4, nomineeRelationship: 4, nomineePhone: 4,
-  paymentMethod: 5, datePaid: 5, paymentReference: 5,
+  stripeSessionId: 5, datePaid: 5, paymentReference: 5,
   sharePlan: 6,
   declarations: 7, signature: 7,
 };
@@ -80,15 +82,16 @@ const STEPS = [
   { id: "contact", title: "Contact details", required: ["phone", "homeAddress", "countryOfResidence"] },
   { id: "identity", title: "Identity", required: ["idType", "idNumber", "idDocsConfirmed"] },
   { id: "nominee", title: "Next of kin", required: ["nomineeName", "nomineeRelationship", "nomineePhone"] },
-  { id: "payment", title: "Registration fee", required: ["paymentMethod", "datePaid", "paymentReference"] },
+  // Which fields depends on where the member lives: see paymentFields().
+  { id: "payment", title: "Registration fee", required: [] as string[] },
   { id: "shares", title: "Share plan", required: ["sharePlan"] },
   { id: "declarations", title: "Declarations", required: ["signature"] },
 ];
 
 const INITIAL: Values = {
   email: "",
-  memberType: "",
-  cohort: "",
+  memberType: [],
+  cohort: [],
   alsoInterested: [],
   heardFrom: "",
   title: "",
@@ -110,7 +113,8 @@ const INITIAL: Values = {
   nomineeName: "",
   nomineeRelationship: "",
   nomineePhone: "",
-  paymentMethod: "",
+  /** Set only once Stripe confirms the card payment; the server checks it again on submit. */
+  stripeSessionId: "",
   datePaid: "",
   paymentReference: "",
   receiptConfirmed: "",
@@ -162,28 +166,76 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
     return () => clearTimeout(id);
   }, [toast]);
 
-  async function startCardPayment(ref = reference) {
+  // Card payment, for members abroad. The checkout opens in its own tab so nothing typed here is
+  // lost; this page then learns the outcome from that tab, or by asking the server every few seconds.
+  const [card, setCard] = useState<{ state: "idle" | "opening" | "waiting"; url?: string; message?: string }>({
+    state: "idle",
+  });
+  const pendingSession = useRef("");
+
+  useEffect(() => {
+    if (card.state !== "waiting") return;
+    let stopped = false;
+
+    async function check() {
+      const sessionId = pendingSession.current;
+      if (!sessionId || stopped) return;
+      try {
+        const res = await fetch("/api/payments/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { paid?: boolean };
+        if (stopped || !data.paid) return;
+        setValues((v) => ({ ...v, stripeSessionId: sessionId }));
+        setErrors((e) => e.filter((x) => x !== "stripeSessionId"));
+        setCard({ state: "idle" });
+      } catch {
+        // Tried again on the next tick.
+      }
+    }
+
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel(PAYMENT_CHANNEL);
+      channel.onmessage = (e) => {
+        if (e.data === "cancelled") setCard({ state: "idle", message: "The payment was cancelled. You can try again." });
+        else void check();
+      };
+    } catch {
+      // No BroadcastChannel: the timer below still finds the payment.
+    }
+    const timer = setInterval(check, 4000);
+    window.addEventListener("focus", check);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      channel?.close();
+      window.removeEventListener("focus", check);
+    };
+  }, [card.state]);
+
+  async function payNow() {
+    // Opened inside the click, before any await, so the browser does not block it as a pop-up.
+    const tab = window.open("", "_blank");
+    setCard({ state: "opening" });
     try {
       const res = await fetch("/api/payments/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reference: ref }),
+        body: JSON.stringify({ email: values.email }),
       });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
-      if (res.ok && data.ok && data.url) {
-        window.location.href = data.url;
-        return;
-      }
-      setToast({
-        kind: "err",
-        title: "We could not open the payment page",
-        body: `${data.error || "Please try again."} Your registration ${ref} was saved.`,
-      });
-    } catch {
-      setToast({
-        kind: "err",
-        title: "We could not reach the payment page",
-        body: `Your registration ${ref} was saved. Please try again in a moment.`,
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; sessionId?: string; error?: string };
+      if (!res.ok || !data.ok || !data.url || !data.sessionId) throw new Error(data.error || "Please try again.");
+      pendingSession.current = data.sessionId;
+      if (tab) tab.location.href = data.url;
+      setCard({ state: "waiting", url: data.url });
+    } catch (err) {
+      tab?.close();
+      setCard({
+        state: "idle",
+        message: `We could not open the payment page. ${err instanceof Error ? err.message : "Please try again."}`,
       });
     }
   }
@@ -200,12 +252,18 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
     set(name, current.includes(option) ? current.filter((o) => o !== option) : [...current, option]);
   };
 
-  // The stored value is the whole option line ("Diaspora member — I live outside Nigeria (…)"),
-  // so match on how it starts rather than on the short label.
-  const isDiaspora = String(values.memberType ?? "").startsWith("Diaspora");
+  // Where the member lives decides how the fee is paid: bank transfer in Nigeria, card from abroad.
+  const country = String(values.countryOfResidence ?? "");
+  const abroad = Boolean(country.trim()) && !livesInNigeria(country);
+  const cardPaid = Boolean(values.stripeSessionId);
+
+  function requiredFor(index: number) {
+    if (STEPS[index].id !== "payment") return STEPS[index].required;
+    return abroad ? ["stripeSessionId"] : ["datePaid", "paymentReference"];
+  }
 
   function validate(index: number) {
-    const missing = STEPS[index].required.filter((name) => {
+    const missing = requiredFor(index).filter((name) => {
       const v = values[name];
       if (Array.isArray(v)) return v.length === 0;
       const text = String(v ?? "").trim();
@@ -250,22 +308,16 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
         setValues(INITIAL);
         setErrors([]);
         setStep(0);
-        setToast(
-          isDiaspora
-            ? {
-                kind: "ok",
-                title: `Registration received — ${data.reference}`,
-                body: "Taking you to the payment page for your £10 registration fee…",
-              }
-            : {
-                kind: "ok",
-                title: `Registration received — ${data.reference}`,
-                body: "Keep your reference. Pay ₦10,000 to VEKAT Nigeria Limited, First Bank 2049483671, using it as the reference.",
-              },
-        );
+        setCard({ state: "idle" });
+        pendingSession.current = "";
+        setToast({
+          kind: "ok",
+          title: `Registration received — ${data.reference}`,
+          body: cardPaid
+            ? "Your £10 registration fee has been paid. Keep your reference; we will follow up by email."
+            : "Keep your reference. We will confirm your ₦10,000 bank transfer and follow up by email.",
+        });
         requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-        // Diaspora members pay by card, so go straight there rather than making them find a button.
-        if (isDiaspora) void startCardPayment(data.reference);
         return;
       }
 
@@ -274,6 +326,8 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
         const first = data.fields[0];
         const target = FIELD_STEP[first] ?? 0;
         setErrors(data.fields);
+        // A card payment the server could not confirm is not shown as paid any more.
+        if (data.fields.includes("stripeSessionId")) setValues((v) => ({ ...v, stripeSessionId: "" }));
         setStep(target);
         setToast({ kind: "err", title: "Some answers need checking", body: "We've marked them below." });
         requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -381,8 +435,9 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
               full
             />
             <Radios
+              multiple
               name="memberType"
-              label="I am joining as *"
+              label="I am joining as (tick all that apply) *"
               options={[
                 "Home member — I live in Nigeria (registration fee ₦10,000)",
                 "Diaspora member — I live outside Nigeria (registration fee £10)",
@@ -393,8 +448,9 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
               set={set}
             />
             <Radios
+              multiple
               name="cohort"
-              label="Which cooperative/cohort do you want to join? *"
+              label="Which cooperative/cohort do you want to join? (tick all that apply) *"
               options={["Edo State (Benin City)", "Abuja FCT"]}
               values={values}
               errors={errors}
@@ -492,7 +548,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
               errors={errors}
               set={set}
             />
-            {isDiaspora && (
+            {abroad && (
               <Area
                 name="nigeriaAddress"
                 label="Address or family home/land in Edo State or Abuja FCT (if any)"
@@ -560,45 +616,44 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
 
         {step === 5 && (
           <Section>
-            {isDiaspora ? (
-              <div className="rounded-xl border border-dashed border-gold-500 bg-cream-dim p-[18px]">
-                <p className="m-0 text-[13.5px] text-muted">
-                  Diaspora members pay a one-off, non-refundable registration fee of <strong>£10</strong> by card. You can pay it on the next
-                  screen, as soon as you have finished this form — paying there attaches the payment to your membership reference
-                  automatically. If you have already paid another way, fill in the details below.
-                </p>
-              </div>
+            {abroad ? (
+              <>
+                <div className="rounded-xl border border-dashed border-gold-500 bg-cream-dim p-[18px]">
+                  <p className="m-0 text-[13.5px] text-muted">
+                    Members living outside Nigeria pay a one-off, non-refundable registration fee of <strong>£10</strong> by
+                    card. The secure Stripe payment page opens in a new tab; when you have paid, it closes and you can carry on
+                    here.
+                  </p>
+                </div>
+                <CardPay
+                  paid={cardPaid}
+                  card={card}
+                  bad={errors.includes("stripeSessionId")}
+                  onPay={payNow}
+                />
+              </>
             ) : (
-              <BankDetails />
+              <>
+                <BankDetails />
+                <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
+                  <Text name="datePaid" label="Date paid *" type="date" values={values} errors={errors} set={set} />
+                  <Text
+                    name="paymentReference"
+                    label="Payment reference or transaction ID *"
+                    values={values}
+                    errors={errors}
+                    set={set}
+                  />
+                </div>
+                <Confirm
+                  name="receiptConfirmed"
+                  label="I have emailed my payment receipt to info@homebridgecooperative.org"
+                  values={values}
+                  errors={errors}
+                  set={set}
+                />
+              </>
             )}
-            <Radios
-              name="paymentMethod"
-              label="How did you pay the registration fee? *"
-              options={[
-                "Bank transfer to VEKAT First Bank 2049483671 (₦10,000)",
-                "Secure card payment link (£10)",
-              ]}
-              values={values}
-              errors={errors}
-              set={set}
-            />
-            <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
-              <Text name="datePaid" label="Date paid *" type="date" values={values} errors={errors} set={set} />
-              <Text
-                name="paymentReference"
-                label="Payment reference or transaction ID *"
-                values={values}
-                errors={errors}
-                set={set}
-              />
-            </div>
-            <Confirm
-              name="receiptConfirmed"
-              label="I have emailed my payment receipt to info@homebridgecooperative.org"
-              values={values}
-              errors={errors}
-              set={set}
-            />
           </Section>
         )}
 
@@ -716,6 +771,57 @@ function Toast({ toast, onClose }: { toast: { kind: "ok" | "err"; title: string;
   );
 }
 
+function CardPay({
+  paid,
+  card,
+  bad,
+  onPay,
+}: {
+  paid: boolean;
+  card: { state: "idle" | "opening" | "waiting"; url?: string; message?: string };
+  bad: boolean;
+  onPay: () => void;
+}) {
+  if (paid) {
+    return (
+      <div role="status" className="flex items-center gap-3 rounded-xl border border-[#BFDAC8] bg-[#EAF3EC] p-[18px]">
+        <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-full bg-green-700 text-[13px] font-bold text-white">
+          {"\u2713"}
+        </span>
+        <div>
+          <p className="m-0 text-[15px] font-semibold text-green-700">Payment completed</p>
+          <p className="m-0 text-[13.5px] text-muted">Your £10 registration fee has been received. You can continue to the next step.</p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2.5">
+      <button
+        type="button"
+        onClick={onPay}
+        disabled={card.state === "opening"}
+        className="btn btn-primary justify-center disabled:opacity-70"
+      >
+        {card.state === "opening" ? "Opening payment page…" : card.state === "waiting" ? "Pay now (open again)" : "Pay now — £10"}
+      </button>
+      {card.state === "waiting" && (
+        <p className="m-0 text-[13px] text-muted" role="status">
+          Waiting for your payment… Complete it in the Stripe tab; this updates by itself. Tab did not open?{" "}
+          <a href={card.url} target="_blank" rel="noopener" className="text-green-700 underline">
+            Open the payment page
+          </a>
+          .
+        </p>
+      )}
+      {card.message && card.state === "idle" && <p className="m-0 text-[13px] text-[#8A3131]">{card.message}</p>}
+      {bad && !card.message && (
+        <p className="m-0 text-[13px] text-[#8A3131]">Please pay the registration fee before continuing.</p>
+      )}
+    </div>
+  );
+}
+
 function BankDetails() {
   return (
     <div className="rounded-xl border border-dashed border-gold-500 bg-cream-dim p-[18px] text-[13.5px] text-muted">
@@ -825,11 +931,17 @@ function Radios({
   label,
   options,
   shortLabels,
+  multiple,
   values,
   errors,
   set,
-}: FieldProps & { options: string[]; shortLabels?: string[] }) {
+}: FieldProps & { options: string[]; shortLabels?: string[]; multiple?: boolean }) {
   const bad = errors.includes(name);
+  // With `multiple`, the same cards act as checkboxes and the value is the list of ticked options.
+  const selected = multiple && Array.isArray(values[name]) ? (values[name] as string[]) : [];
+  const isOn = (o: string) => (multiple ? selected.includes(o) : values[name] === o);
+  const choose = (o: string) =>
+    multiple ? set(name, isOn(o) ? selected.filter((x) => x !== o) : [...selected, o]) : set(name, o);
   return (
     <div className="flex flex-col gap-1.5">
       <span className={labelClass}>{label}</span>
@@ -838,15 +950,15 @@ function Radios({
           <label
             key={o}
             className={`flex flex-1 cursor-pointer items-center gap-[7px] rounded-[9px] border-[1.5px] px-3 py-[9px] text-[14px] leading-snug sm:min-w-[180px] ${
-              values[name] === o ? "border-gold-500 bg-cream" : bad ? "border-[#C06A6A]" : "border-line"
+              isOn(o) ? "border-gold-500 bg-cream" : bad ? "border-[#C06A6A]" : "border-line"
             }`}
           >
             <input
-              type="radio"
+              type={multiple ? "checkbox" : "radio"}
               name={name}
               value={o}
-              checked={values[name] === o}
-              onChange={() => set(name, o)}
+              checked={isOn(o)}
+              onChange={() => choose(o)}
               className="shrink-0 accent-green-700"
             />
             <span>{shortLabels?.[i] ?? o}</span>

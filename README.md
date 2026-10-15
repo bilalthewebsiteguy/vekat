@@ -33,11 +33,16 @@ IP access lists, and agree a retention period with the client.
 
 ## Card payments (Stripe)
 
-Diaspora members pay the registration fee by card after submitting the form. `/api/payments/checkout`
-creates a Stripe Checkout session carrying the member's reference as `client_reference_id`, and
-`/api/payments/webhook` listens for `checkout.session.completed` and marks that member's fee as
-**Verified** — so a paid fee appears as verified in the HomeBridge admin dashboard without anyone
-checking Stripe by hand.
+The form decides how the registration fee is paid from the member's country of residence: members
+in Nigeria pay ₦10,000 by bank transfer and enter the transfer details; members abroad pay £10 by
+card on the same step. **Pay now** opens Stripe Checkout in a new tab (`/api/payments/checkout`);
+when the payment finishes Stripe sends that tab to `/payment-complete`, which tells the form and
+closes itself, and the form shows the payment as completed. On submit, `/api/register` fetches the
+session from Stripe and only accepts it if it is paid, for the right amount, and not already used by
+another registration — the registration is then stored with its fee already **Verified**.
+
+`/api/payments/webhook` still listens for `checkout.session.completed`, for registrations that are
+paid by their reference after submitting.
 
 Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Use the **test** key (`sk_test_…`) until the
 client signs off.
@@ -65,8 +70,8 @@ stripe login
 stripe listen --forward-to localhost:3000/api/payments/webhook
 ```
 
-`stripe listen` prints a `whsec_…` secret — put that in `.env.local` and restart. Then register as a
-diaspora member, click **Pay £10 Registration Fee**, and use Stripe's test card `4242 4242 4242 4242`
+`stripe listen` prints a `whsec_…` secret — put that in `.env.local` and restart. Then register with a
+country of residence outside Nigeria, click **Pay now** on the Registration fee step, and use Stripe's test card `4242 4242 4242 4242`
 with any future expiry and any CVC.
 
 ## Structure
