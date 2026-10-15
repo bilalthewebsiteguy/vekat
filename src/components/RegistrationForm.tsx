@@ -186,9 +186,15 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId }),
         });
-        const data = (await res.json().catch(() => ({}))) as { paid?: boolean };
+        const data = (await res.json().catch(() => ({}))) as { paid?: boolean; paymentRef?: string };
         if (stopped || !data.paid) return;
-        setValues((v) => ({ ...v, stripeSessionId: sessionId }));
+        // Fills in the same date and reference fields a bank payer types, so the step reads the same.
+        setValues((v) => ({
+          ...v,
+          stripeSessionId: sessionId,
+          datePaid: new Date().toISOString().slice(0, 10),
+          paymentReference: data.paymentRef || sessionId,
+        }));
         setErrors((e) => e.filter((x) => x !== "stripeSessionId"));
         setCard({ state: "idle" });
       } catch {
@@ -617,43 +623,47 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
         {step === 5 && (
           <Section>
             {abroad ? (
-              <>
-                <div className="rounded-xl border border-dashed border-gold-500 bg-cream-dim p-[18px]">
-                  <p className="m-0 text-[13.5px] text-muted">
-                    Members living outside Nigeria pay a one-off, non-refundable registration fee of <strong>£10</strong> by
-                    card. The secure Stripe payment page opens in a new tab; when you have paid, it closes and you can carry on
-                    here.
-                  </p>
-                </div>
-                <CardPay
-                  paid={cardPaid}
-                  card={card}
-                  bad={errors.includes("stripeSessionId")}
-                  onPay={payNow}
-                />
-              </>
+              <div className="rounded-xl border border-dashed border-gold-500 bg-cream-dim p-[18px]">
+                <p className="m-0 text-[13.5px] text-muted">
+                  Members living outside Nigeria pay a one-off, non-refundable registration fee of <strong>£10</strong> by card.
+                  Click <strong>Pay now</strong> below: the secure Stripe payment page opens in a new tab and closes when you
+                  have paid.
+                </p>
+              </div>
             ) : (
-              <>
-                <BankDetails />
-                <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
-                  <Text name="datePaid" label="Date paid *" type="date" values={values} errors={errors} set={set} />
-                  <Text
-                    name="paymentReference"
-                    label="Payment reference or transaction ID *"
-                    values={values}
-                    errors={errors}
-                    set={set}
-                  />
-                </div>
-                <Confirm
-                  name="receiptConfirmed"
-                  label="I have emailed my payment receipt to info@homebridgecooperative.org"
-                  values={values}
-                  errors={errors}
-                  set={set}
-                />
-              </>
+              <BankDetails />
             )}
+            <PaymentMethod abroad={abroad} />
+            {abroad && (
+              <CardPay paid={cardPaid} card={card} bad={errors.includes("stripeSessionId")} onPay={payNow} />
+            )}
+            <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
+              <Text
+                name="datePaid"
+                label="Date paid *"
+                type="date"
+                values={values}
+                errors={errors}
+                set={set}
+                readOnly={abroad}
+              />
+              <Text
+                name="paymentReference"
+                label="Payment reference or transaction ID *"
+                placeholder={abroad && !cardPaid ? "Filled in when you pay" : undefined}
+                values={values}
+                errors={errors}
+                set={set}
+                readOnly={abroad}
+              />
+            </div>
+            <Confirm
+              name="receiptConfirmed"
+              label="I have emailed my payment receipt to info@homebridgecooperative.org"
+              values={values}
+              errors={errors}
+              set={set}
+            />
           </Section>
         )}
 
@@ -771,6 +781,37 @@ function Toast({ toast, onClose }: { toast: { kind: "ok" | "err"; title: string;
   );
 }
 
+const BANK_METHOD = "Bank transfer to VEKAT First Bank 2049483671 (₦10,000)";
+const CARD_METHOD = "Secure card payment link (£10)";
+
+/** Shows both ways to pay, with the one that applies chosen from the member's country of residence. */
+function PaymentMethod({ abroad }: { abroad: boolean }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className={labelClass}>How did you pay the registration fee? *</span>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        {[
+          { label: BANK_METHOD, on: !abroad, note: "For members living in Nigeria" },
+          { label: CARD_METHOD, on: abroad, note: "For members living outside Nigeria" },
+        ].map(({ label, on, note }) => (
+          <label
+            key={label}
+            className={`flex flex-1 items-center gap-[7px] rounded-[9px] border-[1.5px] px-3 py-[9px] text-[14px] leading-snug sm:min-w-[180px] ${
+              on ? "border-gold-500 bg-cream" : "border-line opacity-55"
+            }`}
+          >
+            <input type="radio" name="paymentMethod" checked={on} disabled={!on} readOnly className="shrink-0 accent-green-700" />
+            <span>
+              {label}
+              <span className="block text-[12px] text-muted">{note}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CardPay({
   paid,
   card,
@@ -852,9 +893,10 @@ type FieldProps = {
   placeholder?: string;
   type?: string;
   full?: boolean;
+  readOnly?: boolean;
 };
 
-function Text({ name, label, values, errors, set, placeholder, type = "text", full }: FieldProps) {
+function Text({ name, label, values, errors, set, placeholder, type = "text", full, readOnly }: FieldProps) {
   const bad = errors.includes(name);
   return (
     <div className={`flex flex-col gap-1.5 ${full ? "md:col-span-2" : ""}`}>
@@ -867,8 +909,9 @@ function Text({ name, label, values, errors, set, placeholder, type = "text", fu
         value={String(values[name] ?? "")}
         placeholder={placeholder}
         onChange={(e) => set(name, e.target.value)}
+        readOnly={readOnly}
         aria-invalid={bad}
-        className={`${inputClass} ${bad ? "border-[#C06A6A]" : "border-line"}`}
+        className={`${inputClass} ${bad ? "border-[#C06A6A]" : "border-line"} ${readOnly ? "cursor-default text-muted" : ""}`}
       />
       {bad && <Hint name={name} />}
     </div>

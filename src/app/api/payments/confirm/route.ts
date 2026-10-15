@@ -38,7 +38,8 @@ export async function POST(req: Request) {
     }
     // Paid during the form, before a registration exists: it is recorded when the form is submitted.
     if (!reference) {
-      return NextResponse.json({ ok: true, paid: true });
+      const paymentRef = session.payment_intent ? String(session.payment_intent) : session.id;
+      return NextResponse.json({ ok: true, paid: true, paymentRef });
     }
 
     await markPaymentVerified(reference, {
