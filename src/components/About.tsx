@@ -9,8 +9,6 @@ const profile = [
   { label: "Share capital", value: "₦1,000,000" },
 ];
 
-const directors = ["Evbuomwan Victor Ekhorutomwen", "Okonofua Sebastine"];
-
 export default function About() {
   return (
     <section id="about" className="section-screen py-12">
@@ -53,10 +51,6 @@ export default function About() {
                 <dd className="m-0 text-[15px] font-medium text-ink">{item.value}</dd>
               </div>
             ))}
-            <div className="px-7 py-[18px] sm:col-span-2">
-              <dt className="mb-1 text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">Directors</dt>
-              <dd className="m-0 text-[15px] font-medium text-ink">{directors.join(", ")}</dd>
-            </div>
           </dl>
         </div>
       </div>
