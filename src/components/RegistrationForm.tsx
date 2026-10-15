@@ -15,8 +15,47 @@ const FIELD_STEP: Record<string, number> = {
 };
 type Values = Record<string, string | string[]>;
 
+const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+const isPhone = (v: string) => /^\+?\d{10,15}$/.test(v.replace(/[\s\-().]/g, ""));
+
+/** Whole years between a yyyy-mm-dd birth date and today. NaN if the date is not valid. */
+function age(dob: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob);
+  if (!m) return NaN;
+  const [y, mo, d] = [+m[1], +m[2], +m[3]];
+  const today = new Date();
+  let years = today.getFullYear() - y;
+  if (today.getMonth() + 1 < mo || (today.getMonth() + 1 === mo && today.getDate() < d)) years--;
+  return years;
+}
+
+const minLength = (n: number) => (v: string) => v.length >= n;
+
+/**
+ * The same checks /api/register makes, so a bad answer is caught on its own step with a reason,
+ * rather than bouncing back from the server after the last step.
+ */
+const RULES: Record<string, [check: (v: string) => boolean, hint: string]> = {
+  email: [isEmail, "Enter a valid email address."],
+  firstName: [minLength(2), "Enter at least 2 characters."],
+  surname: [minLength(2), "Enter at least 2 characters."],
+  dateOfBirth: [(v) => age(v) >= 18, "You must be 18 or older to register."],
+  nationality: [minLength(2), "Enter at least 2 characters."],
+  occupation: [minLength(2), "Enter at least 2 characters."],
+  phone: [isPhone, "Enter the full number with 10–15 digits, including the country code (e.g. +2348012345678)."],
+  homeAddress: [minLength(6), "Enter your full address."],
+  countryOfResidence: [minLength(2), "Enter at least 2 characters."],
+  idNumber: [minLength(6), "ID numbers are at least 6 characters."],
+  nomineeName: [minLength(3), "Enter your nominee's full name."],
+  nomineeRelationship: [minLength(2), "Enter at least 2 characters."],
+  nomineePhone: [isPhone, "Enter the full number with 10–15 digits, including the country code (e.g. +2348012345678)."],
+  paymentReference: [minLength(3), "Enter at least 3 characters."],
+  signature: [minLength(3), "Type your full name."],
+};
+
+// No border colour here: each field adds border-line or the error colour, so the two never clash.
 const inputClass =
-  "w-full rounded-[9px] border-[1.5px] border-line bg-cream px-[13px] py-2 font-sans leading-[normal] text-[14.5px] text-ink outline-none transition-colors duration-150 focus:border-gold-500";
+  "w-full rounded-[9px] border-[1.5px] bg-cream px-[13px] py-2 font-sans leading-[normal] text-[14.5px] text-ink outline-none transition-colors duration-150 focus:border-gold-500";
 const labelClass = "text-[13px] font-semibold text-green-700";
 
 const TITLES = ["Mr", "Mrs", "Miss", "Ms", "Dr", "Prof", "Chief", "Engr", "Pastor", "Rev", "Other"];
@@ -168,7 +207,9 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
   function validate(index: number) {
     const missing = STEPS[index].required.filter((name) => {
       const v = values[name];
-      return Array.isArray(v) ? v.length === 0 : !String(v ?? "").trim();
+      if (Array.isArray(v)) return v.length === 0;
+      const text = String(v ?? "").trim();
+      return !text || (RULES[name] ? !RULES[name][0](text) : false);
     });
     if (STEPS[index].id === "declarations" && (values.declarations as string[]).length < DECLARATIONS.length) {
       missing.push("declarations");
@@ -322,7 +363,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
           role="alert"
           className="mb-4 rounded-[10px] border border-[#F0C4C4] bg-[#FBEAEA] px-4 py-[13px] text-[14px] text-[#8A3131]"
         >
-          Please complete the highlighted fields before continuing.
+          Please check the highlighted fields before continuing.
         </div>
       )}
 
@@ -720,10 +761,17 @@ function Text({ name, label, values, errors, set, placeholder, type = "text", fu
         value={String(values[name] ?? "")}
         placeholder={placeholder}
         onChange={(e) => set(name, e.target.value)}
-        className={`${inputClass} ${bad ? "border-[#C06A6A]" : ""}`}
+        aria-invalid={bad}
+        className={`${inputClass} ${bad ? "border-[#C06A6A]" : "border-line"}`}
       />
+      {bad && <Hint name={name} />}
     </div>
   );
+}
+
+function Hint({ name }: { name: string }) {
+  const hint = RULES[name]?.[1];
+  return hint ? <p className="m-0 text-[12.5px] text-[#8A3131]">{hint}</p> : null;
 }
 
 function Area({ name, label, values, errors, set, placeholder }: FieldProps) {
@@ -739,8 +787,10 @@ function Area({ name, label, values, errors, set, placeholder }: FieldProps) {
         value={String(values[name] ?? "")}
         placeholder={placeholder}
         onChange={(e) => set(name, e.target.value)}
-        className={`${inputClass} resize-y ${bad ? "border-[#C06A6A]" : ""}`}
+        aria-invalid={bad}
+        className={`${inputClass} resize-y ${bad ? "border-[#C06A6A]" : "border-line"}`}
       />
+      {bad && <Hint name={name} />}
     </div>
   );
 }
@@ -756,7 +806,8 @@ function Select({ name, label, options, values, errors, set }: FieldProps & { op
         id={name}
         value={String(values[name] ?? "")}
         onChange={(e) => set(name, e.target.value)}
-        className={`${inputClass} ${bad ? "border-[#C06A6A]" : ""}`}
+        aria-invalid={bad}
+        className={`${inputClass} ${bad ? "border-[#C06A6A]" : "border-line"}`}
       >
         <option value="">Select…</option>
         {options.map((o) => (
