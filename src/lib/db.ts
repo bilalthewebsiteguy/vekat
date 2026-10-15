@@ -37,7 +37,14 @@ export function getClient(): Promise<MongoClient> {
     if (!global._mongoClientPromise) global._mongoClientPromise = connect();
     return global._mongoClientPromise;
   }
-  if (!clientPromise) clientPromise = connect();
+  // A failed connect is not kept: otherwise one bad attempt (a cold start while Atlas is
+  // unreachable) would fail every later request on this instance until it is recycled.
+  if (!clientPromise) {
+    clientPromise = connect().catch((err) => {
+      clientPromise = null;
+      throw err;
+    });
+  }
   return clientPromise;
 }
 
