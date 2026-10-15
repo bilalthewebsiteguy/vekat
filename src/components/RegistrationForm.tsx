@@ -154,7 +154,9 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
     set(name, current.includes(option) ? current.filter((o) => o !== option) : [...current, option]);
   };
 
-  const isDiaspora = values.memberType === "Diaspora member";
+  // The stored value is the whole option line ("Diaspora member — I live outside Nigeria (…)"),
+  // so match on how it starts rather than on the short label.
+  const isDiaspora = String(values.memberType ?? "").startsWith("Diaspora");
 
   function validate(index: number) {
     const missing = STEPS[index].required.filter((name) => {
