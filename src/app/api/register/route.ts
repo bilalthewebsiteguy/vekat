@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isDbConfigured } from "@/lib/db";
 import { isCheckoutSessionUsed, saveRegistration, type CardPayment, type RegistrationInput } from "@/lib/registrations";
 import { BANK_METHOD, CARD_METHOD } from "@/lib/payment-methods";
-import { JOINING_FEE, isStripeConfigured, stripe } from "@/lib/stripe";
+import { isFormLinkPayment, isStripeConfigured, stripe } from "@/lib/stripe";
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const list = (v: unknown, max = 10) =>
@@ -133,14 +133,8 @@ export async function POST(req: Request) {
     }
     try {
       const session = await stripe().checkout.sessions.retrieve(stripeSessionId);
-      const fee = JOINING_FEE.diaspora;
-      const valid =
-        session.payment_status === "paid" &&
-        session.metadata?.purpose === "registration_fee" &&
-        !session.client_reference_id &&
-        session.amount_total === fee.amount &&
-        session.currency === fee.currency;
-      if (!valid || (await isCheckoutSessionUsed(session.id))) {
+      // Paid on the client's Payment Link, opened from this form, and not used by another registration.
+      if (!(await isFormLinkPayment(session)) || (await isCheckoutSessionUsed(session.id))) {
         return NextResponse.json(
           { ok: false, error: "We could not confirm your card payment", fields: ["stripeSessionId"] },
           { status: 422 },

@@ -40,7 +40,8 @@ export async function POST(req: Request) {
   const reference = session.client_reference_id || session.metadata?.reference || "";
 
   // A session can be "complete" while the payment is still processing, so check the payment itself.
-  if (session.payment_status !== "paid" || !reference) {
+  // Fees paid during the form carry a vekatpay_ token, not a reference: /api/register records those.
+  if (session.payment_status !== "paid" || !reference || reference.startsWith("vekatpay_")) {
     return NextResponse.json({ received: true });
   }
 

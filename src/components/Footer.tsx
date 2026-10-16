@@ -22,7 +22,7 @@ const columns = [
   {
     title: "CONTACT",
     links: [
-      { href: "mailto:info@homebridgecooperative.org", label: "info@homebridgecooperative.org" },
+      { href: "mailto:admin@vekat.org", label: "admin@vekat.org" },
       { href: "tel:+2348105832602", label: "+234 810 583 2602" },
     ],
   },

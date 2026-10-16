@@ -34,45 +34,25 @@ IP access lists, and agree a retention period with the client.
 ## Card payments (Stripe)
 
 Each member chooses how to pay the registration fee, wherever they live: ₦10,000 by bank transfer
-(they enter the transfer details), or £10 by card on the same step. Choosing the card shows
-**Pay now by Stripe**, which opens Stripe Checkout in a new tab (`/api/payments/checkout`);
-when the payment finishes Stripe sends that tab to `/payment-complete`, which tells the form and
-closes itself, and the form shows the payment as completed. On submit, `/api/register` fetches the
-session from Stripe and only accepts it if it is paid, for the right amount, and not already used by
-another registration — the registration is then stored with its fee already **Verified**.
+(they enter the transfer details), or by card on the same step. Choosing the card shows
+**Pay now by Stripe**, which opens the client's Stripe Payment Link (`STRIPE_PAYMENT_LINK` in
+`src/lib/payment-methods.ts`) in a new tab. The form adds a random `vekatpay_…` code as the link's
+`client_reference_id` and then asks `/api/payments/confirm` every few seconds whether Stripe holds a
+paid checkout on that link with that code. Once it does, the step shows the payment as completed.
+On submit, `/api/register` fetches the checkout from Stripe again and only accepts it if it is paid,
+was made on that Payment Link from the form, and is not already used by another registration — the
+registration is then stored with its fee already **Verified**.
 
-`/api/payments/webhook` still listens for `checkout.session.completed`, for registrations that are
-paid by their reference after submitting.
+Set `STRIPE_SECRET_KEY` to the secret key of **the Stripe account that owns the Payment Link**
+(live key `sk_live_…` for a live link); a key from any other account cannot see its payments.
 
-Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Use the **test** key (`sk_test_…`) until the
-client signs off.
+So that the Stripe tab closes itself after paying, edit the Payment Link in the Stripe dashboard →
+**After the payment** → *Don't show confirmation page* → redirect to
+`https://<your-site>/payment-complete?session_id={CHECKOUT_SESSION_ID}`. Without it the payment is
+still picked up; the member just closes Stripe's own confirmation tab themselves.
 
-The webhook signature is checked before any field is trusted: anyone can POST to that URL, so
-without the check a forged request could mark any fee as paid. Repeated events are ignored, because
-Stripe can send the same event more than once.
-
-### On Vercel
-
-Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in the project's environment variables, then
-redeploy (environment changes do not apply to an existing deployment). To get the webhook secret:
-Stripe dashboard → Developers → Webhooks → Add endpoint → `https://<your-site>/api/payments/webhook`,
-select `checkout.session.completed`, save, and copy the signing secret it shows.
-
-A payment is recorded even before that webhook exists: when the payer returns from Stripe the site
-asks Stripe whether that session was actually paid (`/api/payments/confirm`). The session id alone
-proves nothing — the answer comes from Stripe — but this only runs if the payer comes back, which is
-why the webhook is still the reliable path.
-
-### Testing locally
-
-```bash
-stripe login
-stripe listen --forward-to localhost:3000/api/payments/webhook
-```
-
-`stripe listen` prints a `whsec_…` secret — put that in `.env.local` and restart. Then register, choose
-the card payment on the Registration fee step, click **Pay now by Stripe**, and use Stripe's test card `4242 4242 4242 4242`
-with any future expiry and any CVC.
+`/api/payments/webhook` (with `STRIPE_WEBHOOK_SECRET`) only matters for fees paid by a registration's
+`APP-…` reference; fees paid during the form are recorded by `/api/register`.
 
 ## Structure
 

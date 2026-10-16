@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { isDbConfigured } from "@/lib/db";
 import { markPaymentVerified } from "@/lib/registrations";
-import { isStripeConfigured, stripe } from "@/lib/stripe";
+import { isPayToken } from "@/lib/payment-methods";
+import { findLinkPayment, isStripeConfigured, stripe } from "@/lib/stripe";
 
 /**
  * Confirms a payment when the payer returns from Stripe.
@@ -19,11 +20,28 @@ export async function POST(req: Request) {
   }
 
   let sessionId = "";
+  let token = "";
   try {
-    const body = (await req.json()) as { sessionId?: unknown };
+    const body = (await req.json()) as { sessionId?: unknown; token?: unknown };
     sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
+    token = typeof body.token === "string" ? body.token.trim() : "";
   } catch {
     return NextResponse.json({ ok: false, error: "Invalid request" }, { status: 400 });
+  }
+
+  // Paid during the form on the Payment Link: found by the token the form gave Stripe. It is
+  // recorded when the form is submitted.
+  if (token) {
+    if (!isPayToken(token)) return NextResponse.json({ ok: false, error: "Invalid request" }, { status: 400 });
+    try {
+      const session = await findLinkPayment(token);
+      if (!session) return NextResponse.json({ ok: true, paid: false });
+      const paymentRef = session.payment_intent ? String(session.payment_intent) : session.id;
+      return NextResponse.json({ ok: true, paid: true, sessionId: session.id, paymentRef });
+    } catch (err) {
+      console.error("[confirm] could not check the payment:", err instanceof Error ? err.message : "unknown error");
+      return NextResponse.json({ ok: false, error: "Could not confirm the payment" }, { status: 502 });
+    }
   }
   if (!sessionId.startsWith("cs_")) {
     return NextResponse.json({ ok: false, error: "Invalid session" }, { status: 400 });
@@ -36,10 +54,8 @@ export async function POST(req: Request) {
     if (session.payment_status !== "paid") {
       return NextResponse.json({ ok: true, paid: false });
     }
-    // Paid during the form, before a registration exists: it is recorded when the form is submitted.
-    if (!reference) {
-      const paymentRef = session.payment_intent ? String(session.payment_intent) : session.id;
-      return NextResponse.json({ ok: true, paid: true, paymentRef });
+    if (!reference || reference.startsWith("vekatpay_")) {
+      return NextResponse.json({ ok: false, error: "Invalid session" }, { status: 400 });
     }
 
     await markPaymentVerified(reference, {

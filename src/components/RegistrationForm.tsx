@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { PAYMENT_CHANNEL } from "./PaymentTab";
-import { BANK_METHOD, CARD_METHOD } from "@/lib/payment-methods";
+import { BANK_METHOD, CARD_METHOD, PAY_TOKEN_PREFIX, STRIPE_PAYMENT_LINK } from "@/lib/payment-methods";
 import { livesInNigeria } from "@/lib/residence";
 
 /** Field ids, in the order they appear, so a server rejection can name the step to go back to. */
@@ -38,7 +38,8 @@ function readDraft() {
   }
 }
 
-type CardState = { state: "idle" | "opening" | "waiting"; url?: string; sessionId?: string; message?: string };
+// token: the code sent to Stripe with the payment, which finds that payment again.
+type CardState = { state: "idle" | "waiting"; url?: string; token?: string };
 
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
 const isPhone = (v: string) => /^\+?\d{10,15}$/.test(v.replace(/[\s\-().]/g, ""));
@@ -212,7 +213,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
       setValues({ ...INITIAL, ...draft.values });
       setStep(Math.min(Math.max(Number(draft.step) || 0, 0), STEPS.length - 1));
       if (draft.pending && !draft.values.stripeSessionId) {
-        setCard({ state: "waiting", url: draft.payUrl, sessionId: draft.pending });
+        setCard({ state: "waiting", url: draft.payUrl, token: draft.pending });
       }
     }
   }
@@ -222,7 +223,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
   useEffect(() => {
     if (!draftApplied) return;
     try {
-      const pending = card.state === "waiting" ? card.sessionId : undefined;
+      const pending = card.state === "waiting" ? card.token : undefined;
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ values, step, pending, payUrl: pending ? card.url : undefined }));
     } catch {
       // Storage full or blocked: the form still works, it just will not survive a refresh.
@@ -230,8 +231,8 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
   }, [draftApplied, values, step, card]);
 
   useEffect(() => {
-    const sessionId = card.sessionId ?? "";
-    if (card.state !== "waiting" || !sessionId) return;
+    const token = card.token ?? "";
+    if (card.state !== "waiting" || !token) return;
     let stopped = false;
 
     async function check() {
@@ -240,10 +241,11 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
         const res = await fetch("/api/payments/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId }),
+          body: JSON.stringify({ token }),
         });
-        const data = (await res.json().catch(() => ({}))) as { paid?: boolean; paymentRef?: string };
-        if (stopped || !data.paid) return;
+        const data = (await res.json().catch(() => ({}))) as { paid?: boolean; sessionId?: string; paymentRef?: string };
+        if (stopped || !data.paid || !data.sessionId) return;
+        const sessionId = data.sessionId;
         // Fills in the same date and reference fields a bank payer types, so the step reads the same.
         setValues((v) => ({
           ...v,
@@ -276,29 +278,17 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
       channel?.close();
       window.removeEventListener("focus", check);
     };
-  }, [card.state, card.sessionId]);
+  }, [card.state, card.token]);
 
-  async function payNow() {
-    // Opened inside the click, before any await, so the browser does not block it as a pop-up.
-    const tab = window.open("", "_blank");
-    setCard({ state: "opening" });
-    try {
-      const res = await fetch("/api/payments/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: values.email }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; sessionId?: string; error?: string };
-      if (!res.ok || !data.ok || !data.url || !data.sessionId) throw new Error(data.error || "");
-      if (tab) tab.location.href = data.url;
-      setCard({ state: "waiting", url: data.url, sessionId: data.sessionId });
-    } catch (err) {
-      tab?.close();
-      setCard({
-        state: "idle",
-        message: `We could not open the Stripe payment page. ${err instanceof Error ? err.message : ""}`.trim(),
-      });
-    }
+  function payNow() {
+    // The client's Stripe Payment Link, opened in its own tab. The token goes with it as
+    // client_reference_id, so the server can find this payment and nobody else's.
+    const token = PAY_TOKEN_PREFIX + crypto.randomUUID();
+    const url = new URL(STRIPE_PAYMENT_LINK);
+    url.searchParams.set("client_reference_id", token);
+    if (isEmail(String(values.email ?? ""))) url.searchParams.set("prefilled_email", String(values.email));
+    window.open(url.toString(), "_blank");
+    setCard({ state: "waiting", url: url.toString(), token });
   }
 
   const topRef = useRef<HTMLDivElement>(null);
@@ -707,7 +697,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
               bad={errors.includes("paymentMethod")}
               onChange={choosePayment}
             />
-            {byCard && <CardPay paid={cardPaid} card={card} bad={errors.includes("stripeSessionId")} onPay={payNow} />}
+            {byCard && <CardPay paid={cardPaid} bad={errors.includes("stripeSessionId")} onPay={payNow} />}
             <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
               <Text
                 name="datePaid"
@@ -896,17 +886,7 @@ function PaymentMethod({
   );
 }
 
-function CardPay({
-  paid,
-  card,
-  bad,
-  onPay,
-}: {
-  paid: boolean;
-  card: CardState;
-  bad: boolean;
-  onPay: () => void;
-}) {
+function CardPay({ paid, bad, onPay }: { paid: boolean; bad: boolean; onPay: () => void }) {
   if (paid) {
     return (
       <div role="status" className="flex items-center gap-3 rounded-xl border border-[#BFDAC8] bg-[#EAF3EC] p-[18px]">
@@ -925,13 +905,11 @@ function CardPay({
       <button
         type="button"
         onClick={onPay}
-        disabled={card.state === "opening"}
-        className="btn btn-primary justify-center disabled:opacity-70"
+        className="btn btn-primary justify-center"
       >
         Pay now by Stripe
       </button>
-      {card.message && card.state === "idle" && <p className="m-0 text-[13px] text-[#8A3131]">{card.message}</p>}
-      {bad && !card.message && (
+      {bad && (
         <p className="m-0 text-[13px] text-[#8A3131]">Please pay the registration fee before continuing.</p>
       )}
     </div>

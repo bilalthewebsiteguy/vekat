@@ -6,6 +6,7 @@
 
 import "server-only";
 import Stripe from "stripe";
+import { STRIPE_PAYMENT_LINK, isPayToken } from "@/lib/payment-methods";
 
 const key = process.env.STRIPE_SECRET_KEY;
 
@@ -22,7 +23,41 @@ export function stripe(): Stripe {
   return client;
 }
 
-/** The registration fee, by where the member lives. Amounts are in the currency's smallest unit. */
-export const JOINING_FEE = {
-  diaspora: { amount: 1000, currency: "gbp", label: "HomeBridge registration fee" },
-} as const;
+let linkId: string | null = null;
+
+/** The id of the client's Payment Link, looked up once from its URL. */
+async function paymentLinkId() {
+  if (linkId) return linkId;
+  for await (const link of stripe().paymentLinks.list({ limit: 100 })) {
+    if (link.url === STRIPE_PAYMENT_LINK) {
+      linkId = link.id;
+      return linkId;
+    }
+  }
+  throw new Error("The Stripe payment link was not found in this Stripe account");
+}
+
+/** True for a paid checkout on the client's Payment Link that was opened from the form. */
+export async function isFormLinkPayment(session: Stripe.Checkout.Session) {
+  const link = typeof session.payment_link === "string" ? session.payment_link : session.payment_link?.id;
+  return (
+    session.payment_status === "paid" &&
+    isPayToken(session.client_reference_id ?? "") &&
+    Boolean(link) &&
+    link === (await paymentLinkId())
+  );
+}
+
+/** Finds the paid checkout the form opened with this token, if it has been paid yet. */
+export async function findLinkPayment(token: string) {
+  const sessions = await stripe().checkout.sessions.list({
+    payment_link: await paymentLinkId(),
+    status: "complete",
+    created: { gte: Math.floor(Date.now() / 1000) - 2 * 24 * 3600 },
+    limit: 100,
+  });
+  for (const session of sessions.data) {
+    if (session.client_reference_id === token && (await isFormLinkPayment(session))) return session;
+  }
+  return null;
+}
