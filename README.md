@@ -33,9 +33,9 @@ IP access lists, and agree a retention period with the client.
 
 ## Card payments (Stripe)
 
-The form decides how the registration fee is paid from the member's country of residence: members
-in Nigeria pay ₦10,000 by bank transfer and enter the transfer details; members abroad pay £10 by
-card on the same step. **Pay now** opens Stripe Checkout in a new tab (`/api/payments/checkout`);
+Each member chooses how to pay the registration fee, wherever they live: ₦10,000 by bank transfer
+(they enter the transfer details), or £10 by card on the same step. Choosing the card shows
+**Pay now by Stripe**, which opens Stripe Checkout in a new tab (`/api/payments/checkout`);
 when the payment finishes Stripe sends that tab to `/payment-complete`, which tells the form and
 closes itself, and the form shows the payment as completed. On submit, `/api/register` fetches the
 session from Stripe and only accepts it if it is paid, for the right amount, and not already used by
@@ -70,8 +70,8 @@ stripe login
 stripe listen --forward-to localhost:3000/api/payments/webhook
 ```
 
-`stripe listen` prints a `whsec_…` secret — put that in `.env.local` and restart. Then register with a
-country of residence outside Nigeria, click **Pay now** on the Registration fee step, and use Stripe's test card `4242 4242 4242 4242`
+`stripe listen` prints a `whsec_…` secret — put that in `.env.local` and restart. Then register, choose
+the card payment on the Registration fee step, click **Pay now by Stripe**, and use Stripe's test card `4242 4242 4242 4242`
 with any future expiry and any CVC.
 
 ## Structure

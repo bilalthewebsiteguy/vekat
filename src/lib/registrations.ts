@@ -8,6 +8,7 @@
 import "server-only";
 import type { Collection } from "mongodb";
 import { getDb } from "@/lib/db";
+import { livesInNigeria } from "@/lib/residence";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -309,8 +310,7 @@ export async function saveRegistration(
     heard: input.heardFrom,
     chapter: input.cohort.join(", "),
     chapters: input.cohort,
-    // The fee route decides it: members who pay by card live abroad.
-    memberType: card ? "diaspora" : "home",
+    memberType: livesInNigeria(input.countryOfResidence) ? "home" : "diaspora",
     memberTypes: input.memberType,
     route: "",
     routeDetail: input.nigeriaAddress,

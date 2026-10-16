@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isDbConfigured } from "@/lib/db";
 import { isCheckoutSessionUsed, saveRegistration, type CardPayment, type RegistrationInput } from "@/lib/registrations";
-import { livesInNigeria } from "@/lib/residence";
+import { BANK_METHOD, CARD_METHOD } from "@/lib/payment-methods";
 import { JOINING_FEE, isStripeConfigured, stripe } from "@/lib/stripe";
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
@@ -75,10 +75,10 @@ export async function POST(req: Request) {
     signature: str(body.signature, 120),
   };
 
-  // Members in Nigeria pay by bank transfer; members abroad pay by card during the form.
-  const byCard = !livesInNigeria(input.countryOfResidence);
+  // The member chooses: bank transfer, or card through Stripe during the form.
+  input.paymentMethod = str(body.paymentMethod, 120);
+  const byCard = input.paymentMethod === CARD_METHOD;
   const stripeSessionId = str(body.stripeSessionId, 200);
-  input.paymentMethod = byCard ? "Card payment (Stripe, £10)" : "Bank transfer to VEKAT First Bank 2049483671 (₦10,000)";
 
   // The browser checks each step, but a request can arrive without going through the form at all.
   const fields: string[] = [];
@@ -101,6 +101,7 @@ export async function POST(req: Request) {
   if (input.nomineeName.length < 3) fields.push("nomineeName");
   if (input.nomineeRelationship.length < 2) fields.push("nomineeRelationship");
   if (!isPhone(input.nomineePhone)) fields.push("nomineePhone");
+  if (input.paymentMethod !== BANK_METHOD && !byCard) fields.push("paymentMethod");
   if (byCard) {
     if (!stripeSessionId.startsWith("cs_")) fields.push("stripeSessionId");
   } else {

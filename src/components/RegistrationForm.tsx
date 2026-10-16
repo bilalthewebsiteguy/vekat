@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { PAYMENT_CHANNEL } from "./PaymentTab";
+import { BANK_METHOD, CARD_METHOD } from "@/lib/payment-methods";
 import { livesInNigeria } from "@/lib/residence";
 
 /** Field ids, in the order they appear, so a server rejection can name the step to go back to. */
@@ -11,7 +12,7 @@ const FIELD_STEP: Record<string, number> = {
   phone: 2, homeAddress: 2, countryOfResidence: 2,
   idType: 3, idNumber: 3, idDocsConfirmed: 3,
   nomineeName: 4, nomineeRelationship: 4, nomineePhone: 4,
-  stripeSessionId: 5, datePaid: 5, paymentReference: 5,
+  paymentMethod: 5, stripeSessionId: 5, datePaid: 5, paymentReference: 5,
   sharePlan: 6,
   declarations: 7, signature: 7,
 };
@@ -104,7 +105,7 @@ const STEPS = [
   { id: "contact", title: "Contact details", required: ["phone", "homeAddress", "countryOfResidence"] },
   { id: "identity", title: "Identity", required: ["idType", "idNumber", "idDocsConfirmed"] },
   { id: "nominee", title: "Next of kin", required: ["nomineeName", "nomineeRelationship", "nomineePhone"] },
-  // Which fields depends on where the member lives: see paymentFields().
+  // Which fields depends on how the member chooses to pay: see requiredFor().
   { id: "payment", title: "Registration fee", required: [] as string[] },
   { id: "shares", title: "Share plan", required: ["sharePlan"] },
   { id: "declarations", title: "Declarations", required: ["signature"] },
@@ -135,6 +136,7 @@ const INITIAL: Values = {
   nomineeName: "",
   nomineeRelationship: "",
   nomineePhone: "",
+  paymentMethod: "",
   /** Set only once Stripe confirms the card payment; the server checks it again on submit. */
   stripeSessionId: "",
   datePaid: "",
@@ -188,7 +190,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
     return () => clearTimeout(id);
   }, [toast]);
 
-  // Card payment, for members abroad. The checkout opens in its own tab so nothing typed here is
+  // Card payment, for members who choose Stripe. The checkout opens in its own tab so nothing typed here is
   // lost; this page then learns the outcome from that tab, or by asking the server every few seconds.
   const [card, setCard] = useState<CardState>({ state: "idle" });
 
@@ -260,7 +262,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
     try {
       channel = new BroadcastChannel(PAYMENT_CHANNEL);
       channel.onmessage = (e) => {
-        if (e.data === "cancelled") setCard({ state: "idle", message: "The payment was cancelled. You can try again." });
+        if (e.data === "cancelled") setCard({ state: "idle" });
         else void check();
       };
     } catch {
@@ -287,14 +289,14 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
         body: JSON.stringify({ email: values.email }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; sessionId?: string; error?: string };
-      if (!res.ok || !data.ok || !data.url || !data.sessionId) throw new Error(data.error || "Please try again.");
+      if (!res.ok || !data.ok || !data.url || !data.sessionId) throw new Error(data.error || "");
       if (tab) tab.location.href = data.url;
       setCard({ state: "waiting", url: data.url, sessionId: data.sessionId });
     } catch (err) {
       tab?.close();
       setCard({
         state: "idle",
-        message: `We could not open the payment page. ${err instanceof Error ? err.message : "Please try again."}`,
+        message: `We could not open the Stripe payment page. ${err instanceof Error ? err.message : ""}`.trim(),
       });
     }
   }
@@ -311,14 +313,23 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
     set(name, current.includes(option) ? current.filter((o) => o !== option) : [...current, option]);
   };
 
-  // Where the member lives decides how the fee is paid: bank transfer in Nigeria, card from abroad.
   const country = String(values.countryOfResidence ?? "");
   const abroad = Boolean(country.trim()) && !livesInNigeria(country);
+  // The member chooses how to pay the fee, wherever they live.
+  const byCard = values.paymentMethod === CARD_METHOD;
   const cardPaid = Boolean(values.stripeSessionId);
 
   function requiredFor(index: number) {
     if (STEPS[index].id !== "payment") return STEPS[index].required;
-    return abroad ? ["stripeSessionId"] : ["datePaid", "paymentReference"];
+    return byCard ? ["paymentMethod", "stripeSessionId"] : ["paymentMethod", "datePaid", "paymentReference"];
+  }
+
+  function choosePayment(method: string) {
+    // A card payment already made stays chosen, so it cannot be lost by switching.
+    if (cardPaid || method === values.paymentMethod) return;
+    // The date and reference belong to the old choice: Stripe fills them in itself.
+    setValues((v) => ({ ...v, paymentMethod: method, datePaid: "", paymentReference: "" }));
+    setErrors((e) => e.filter((x) => !["paymentMethod", "stripeSessionId", "datePaid", "paymentReference"].includes(x)));
   }
 
   function validate(index: number) {
@@ -679,21 +690,24 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
 
         {step === 5 && (
           <Section>
-            {abroad ? (
+            {byCard ? (
               <div className="rounded-xl border border-dashed border-gold-500 bg-cream-dim p-[18px]">
                 <p className="m-0 text-[13.5px] text-muted">
-                  Members living outside Nigeria pay a one-off, non-refundable registration fee of <strong>£10</strong> by card.
-                  Click <strong>Pay now</strong> below: the secure Stripe payment page opens in a new tab and closes when you
-                  have paid.
+                  Pay the one-off, non-refundable registration fee of <strong>£10</strong> by card. Click{" "}
+                  <strong>Pay now by Stripe</strong> below: the secure Stripe payment page opens in a new tab and closes when
+                  you have paid.
                 </p>
               </div>
             ) : (
               <BankDetails />
             )}
-            <PaymentMethod abroad={abroad} />
-            {abroad && (
-              <CardPay paid={cardPaid} card={card} bad={errors.includes("stripeSessionId")} onPay={payNow} />
-            )}
+            <PaymentMethod
+              value={String(values.paymentMethod ?? "")}
+              locked={cardPaid}
+              bad={errors.includes("paymentMethod")}
+              onChange={choosePayment}
+            />
+            {byCard && <CardPay paid={cardPaid} card={card} bad={errors.includes("stripeSessionId")} onPay={payNow} />}
             <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
               <Text
                 name="datePaid"
@@ -702,16 +716,16 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
                 values={values}
                 errors={errors}
                 set={set}
-                readOnly={abroad}
+                readOnly={byCard}
               />
               <Text
                 name="paymentReference"
                 label="Payment reference or transaction ID *"
-                placeholder={abroad && !cardPaid ? "Filled in when you pay" : undefined}
+                placeholder={byCard && !cardPaid ? "Filled in when you pay" : undefined}
                 values={values}
                 errors={errors}
                 set={set}
-                readOnly={abroad}
+                readOnly={byCard}
               />
             </div>
             <Confirm
@@ -838,32 +852,45 @@ function Toast({ toast, onClose }: { toast: { kind: "ok" | "err"; title: string;
   );
 }
 
-const BANK_METHOD = "Bank transfer to VEKAT First Bank 2049483671 (₦10,000)";
-const CARD_METHOD = "Secure card payment link (£10)";
-
-/** Shows both ways to pay, with the one that applies chosen from the member's country of residence. */
-function PaymentMethod({ abroad }: { abroad: boolean }) {
+/** Both ways to pay, open to every member: they choose. */
+function PaymentMethod({
+  value,
+  locked,
+  bad,
+  onChange,
+}: {
+  value: string;
+  locked: boolean;
+  bad: boolean;
+  onChange: (method: string) => void;
+}) {
   return (
     <div className="flex flex-col gap-1.5">
       <span className={labelClass}>How did you pay the registration fee? *</span>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        {[
-          { label: BANK_METHOD, on: !abroad, note: "For members living in Nigeria" },
-          { label: CARD_METHOD, on: abroad, note: "For members living outside Nigeria" },
-        ].map(({ label, on, note }) => (
-          <label
-            key={label}
-            className={`flex flex-1 items-center gap-[7px] rounded-[9px] border-[1.5px] px-3 py-[9px] text-[14px] leading-snug sm:min-w-[180px] ${
-              on ? "border-gold-500 bg-cream" : "border-line opacity-55"
-            }`}
-          >
-            <input type="radio" name="paymentMethod" checked={on} disabled={!on} readOnly className="shrink-0 accent-green-700" />
-            <span>
-              {label}
-              <span className="block text-[12px] text-muted">{note}</span>
-            </span>
-          </label>
-        ))}
+        {[BANK_METHOD, CARD_METHOD].map((label) => {
+          const on = value === label;
+          const off = locked && !on;
+          return (
+            <label
+              key={label}
+              className={`flex flex-1 items-center gap-[7px] rounded-[9px] border-[1.5px] px-3 py-[9px] text-[14px] leading-snug sm:min-w-[180px] ${
+                on ? "border-gold-500 bg-cream" : bad ? "border-[#C06A6A]" : "border-line"
+              } ${off ? "opacity-55" : "cursor-pointer"}`}
+            >
+              <input
+                type="radio"
+                name="paymentMethod"
+                value={label}
+                checked={on}
+                disabled={off}
+                onChange={() => onChange(label)}
+                className="shrink-0 accent-green-700"
+              />
+              <span>{label}</span>
+            </label>
+          );
+        })}
       </div>
     </div>
   );
@@ -901,17 +928,8 @@ function CardPay({
         disabled={card.state === "opening"}
         className="btn btn-primary justify-center disabled:opacity-70"
       >
-        {card.state === "opening" ? "Opening payment page…" : card.state === "waiting" ? "Pay now (open again)" : "Pay now — £10"}
+        Pay now by Stripe
       </button>
-      {card.state === "waiting" && (
-        <p className="m-0 text-[13px] text-muted" role="status">
-          Waiting for your payment… Complete it in the Stripe tab; this updates by itself. Tab did not open?{" "}
-          <a href={card.url} target="_blank" rel="noopener" className="text-green-700 underline">
-            Open the payment page
-          </a>
-          .
-        </p>
-      )}
       {card.message && card.state === "idle" && <p className="m-0 text-[13px] text-[#8A3131]">{card.message}</p>}
       {bad && !card.message && (
         <p className="m-0 text-[13px] text-[#8A3131]">Please pay the registration fee before continuing.</p>
@@ -924,7 +942,7 @@ function BankDetails() {
   return (
     <div className="rounded-xl border border-dashed border-gold-500 bg-cream-dim p-[18px] text-[13.5px] text-muted">
       <p className="m-0 mb-2">
-        Home members pay a one-off, non-refundable registration fee of <strong>₦10,000</strong> by bank transfer:
+        Pay the one-off, non-refundable registration fee of <strong>₦10,000</strong> by bank transfer:
       </p>
       <p className="m-0">
         <strong className="text-green-700">VEKAT Nigeria Limited</strong>
