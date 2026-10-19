@@ -1,44 +1,26 @@
 // Outgoing email, used for the registration confirmation.
 //
-// Sent over SMTP through the vekat.org mailbox hosted at GoDaddy, so the member sees a real
-// vekat.org address as the sender.
+// Sent through Resend's HTTP API rather than its npm package, so there is nothing extra to install
+// and nothing to configure on Vercel beyond the two variables below.
 //
-// SMTP_PASSWORD is the mailbox password: a server secret, never imported into a client component
-// and never sent to the browser. If it is not set, no mail is sent and registrations still save.
+// RESEND_API_KEY is a server secret and is never sent to the browser. Until the vekat.org domain is
+// verified in Resend, leave EMAIL_FROM unset: Resend's own test sender is used, which can only
+// deliver to the address that owns the Resend account. Once the domain is verified, set
+// EMAIL_FROM="Home Bridge <no-reply@vekat.org>" and it delivers to anyone.
 
 import "server-only";
-import nodemailer, { type Transporter } from "nodemailer";
 
-/** GoDaddy's own "Professional Email". Microsoft 365 mailboxes use smtp.office365.com instead. */
-const DEFAULT_HOST = "smtpout.secureserver.net";
-const DEFAULT_PORT = 465;
+const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
-const host = process.env.SMTP_HOST?.trim() || DEFAULT_HOST;
-const port = Number(process.env.SMTP_PORT) || DEFAULT_PORT;
-const user = process.env.SMTP_USER?.trim() || "";
-const password = process.env.SMTP_PASSWORD || "";
+/** Resend's shared test sender. Deliverable only to the Resend account's own address. */
+const TEST_FROM = "onboarding@resend.dev";
 
-export const isEmailConfigured = () => Boolean(user && password);
+const apiKey = process.env.RESEND_API_KEY;
 
-let transporter: Transporter | null = null;
+export const isEmailConfigured = () => Boolean(apiKey);
 
-/** One reused connection pool: a new SMTP handshake per email is slow and trips rate limits. */
-function transport(): Transporter {
-  transporter ??= nodemailer.createTransport({
-    host,
-    port,
-    // 465 is implicit TLS; 587 upgrades with STARTTLS. Either way the password is never in clear.
-    secure: port === 465,
-    auth: { user, pass: password },
-    pool: true,
-    maxConnections: 1,
-    // Vercel functions are short-lived, so fail fast rather than holding the request open.
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 15_000,
-  });
-  return transporter;
-}
+/** True while no verified sending domain is set, so the UI and logs can say so plainly. */
+export const isEmailTestSender = () => !process.env.EMAIL_FROM;
 
 export type SendResult = { ok: true; id: string } | { ok: false; error: string };
 
@@ -56,28 +38,41 @@ type SendInput = {
  * caller gets a result to log and the member's registration still stands.
  */
 export async function sendEmail(input: SendInput): Promise<SendResult> {
-  if (!isEmailConfigured()) return { ok: false, error: "SMTP_USER / SMTP_PASSWORD are not set" };
+  if (!apiKey) return { ok: false, error: "RESEND_API_KEY is not set" };
 
-  // GoDaddy rejects a From that is not the authenticated mailbox, so it defaults to that mailbox.
-  const from = process.env.EMAIL_FROM?.trim() || `Home Bridge <${user}>`;
+  const from = process.env.EMAIL_FROM?.trim() || TEST_FROM;
   const bcc = input.bcc?.trim() || process.env.EMAIL_BCC?.trim() || "";
+  const replyTo = process.env.EMAIL_REPLY_TO?.trim() || "";
 
   try {
-    const info = await transport().sendMail({
-      from,
-      to: input.to,
-      subject: input.subject,
-      text: input.text,
-      html: input.html,
-      ...(bcc ? { bcc } : {}),
-      // Bounces and auto-replies go to the mailbox, not to the member.
-      replyTo: process.env.EMAIL_REPLY_TO?.trim() || user,
+    const res = await fetch(RESEND_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [input.to],
+        subject: input.subject,
+        text: input.text,
+        html: input.html,
+        ...(bcc ? { bcc: [bcc] } : {}),
+        // no-reply@vekat.org has no mailbox behind it, so replies are pointed at one that does.
+        ...(replyTo ? { reply_to: [replyTo] } : {}),
+      }),
     });
 
-    return { ok: true, id: info.messageId || "" };
+    const data = (await res.json().catch(() => null)) as { id?: string; message?: string } | null;
+
+    if (!res.ok) {
+      // Resend's message says which address or domain was refused, which is what makes a bad
+      // EMAIL_FROM debuggable. It carries no member data, so it is safe to log.
+      return { ok: false, error: data?.message || `Resend returned ${res.status}` };
+    }
+
+    return { ok: true, id: data?.id || "" };
   } catch (err) {
-    // SMTP errors name the host and the refusal reason, which is what makes a wrong host, port or
-    // password debuggable. They carry no member data, so the caller can log this safely.
     return { ok: false, error: err instanceof Error ? err.message : "unknown error" };
   }
 }
