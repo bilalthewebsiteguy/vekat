@@ -176,7 +176,7 @@ export async function POST(req: Request) {
       });
       if (!sent.ok) console.error("[register] confirmation email not sent:", sent.error);
     } else {
-      console.warn("[register] RESEND_API_KEY is not set — no confirmation email was sent.");
+      console.warn("[register] SMTP is not configured — no confirmation email was sent.");
     }
 
     return NextResponse.json({ ok: true, reference });
