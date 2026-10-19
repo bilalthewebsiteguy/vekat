@@ -84,8 +84,10 @@ export type ConfirmationInput = {
   to: string;
   firstName: string;
   reference: string;
-  /** True when the fee was already paid by card on the form; false means a bank transfer is owed. */
+  /** True when the fee was paid by card on the form; false when it was paid by bank transfer. */
   paidByCard: boolean;
+  /** The transfer reference the member typed on the form. Bank payers only. */
+  paymentReference?: string;
 };
 
 /**
@@ -97,6 +99,7 @@ export type ConfirmationInput = {
 export async function sendRegistrationConfirmation(input: ConfirmationInput): Promise<SendResult> {
   const name = input.firstName.trim() || "there";
   const ref = input.reference;
+  const payRef = input.paymentReference?.trim() || "";
 
   const nextStep = input.paidByCard
     ? {
@@ -104,8 +107,10 @@ export async function sendRegistrationConfirmation(input: ConfirmationInput): Pr
         html: `Your <strong>£10 registration fee</strong> was paid by card with this application, so there is nothing further to pay. Your card statement will show the payment separately.`,
       }
     : {
-        text: `Next step: pay your ₦10,000 registration fee to VEKAT Nigeria Limited, First Bank, account 2049483671, and put ${ref} as the payment reference so we can match it to you.`,
-        html: `<strong>Next step:</strong> pay your <strong>₦10,000</strong> registration fee to VEKAT Nigeria Limited, First Bank, account <strong>2049483671</strong>, and put <strong>${esc(ref)}</strong> as the payment reference so we can match it to you.`,
+        // The form takes the transfer details after the member has paid, so this confirms what
+        // they told us rather than asking them to pay a second time.
+        text: `You told us you paid the ₦10,000 registration fee by bank transfer${payRef ? `, with the reference ${payRef}` : ""}. We will check it against our First Bank account and confirm it. There is nothing further for you to do.`,
+        html: `You told us you paid the <strong>₦10,000</strong> registration fee by bank transfer${payRef ? `, with the reference <strong>${esc(payRef)}</strong>` : ""}. We will check it against our First Bank account and confirm it. There is nothing further for you to do.`,
       };
 
   const text = [

@@ -173,6 +173,7 @@ export async function POST(req: Request) {
         firstName: input.firstName,
         reference,
         paidByCard: byCard,
+        paymentReference: byCard ? undefined : input.paymentReference,
       });
       if (!sent.ok) console.error("[register] confirmation email not sent:", sent.error);
     } else {
