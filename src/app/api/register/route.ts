@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isDbConfigured } from "@/lib/db";
+import { isEmailConfigured, sendRegistrationConfirmation } from "@/lib/email";
 import { isCheckoutSessionUsed, saveRegistration, type CardPayment, type RegistrationInput } from "@/lib/registrations";
 import { BANK_METHOD, CARD_METHOD } from "@/lib/payment-methods";
 import { isFormLinkPayment, isStripeConfigured, stripe } from "@/lib/stripe";
@@ -162,6 +163,22 @@ export async function POST(req: Request) {
 
   try {
     const { reference } = await saveRegistration(input, card);
+
+    // Sent only after the record is safely stored, and a mail failure never fails the
+    // registration: the member has their reference on screen either way, and the error is logged
+    // so it can be chased. The address is never logged with the error.
+    if (isEmailConfigured()) {
+      const sent = await sendRegistrationConfirmation({
+        to: input.email,
+        firstName: input.firstName,
+        reference,
+        paidByCard: byCard,
+      });
+      if (!sent.ok) console.error("[register] confirmation email not sent:", sent.error);
+    } else {
+      console.warn("[register] RESEND_API_KEY is not set — no confirmation email was sent.");
+    }
+
     return NextResponse.json({ ok: true, reference });
   } catch (err) {
     // Never return the error text: a Mongo error can carry the connection string.
