@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { PAYMENT_CHANNEL } from "./PaymentTab";
 import { BANK_METHOD, CARD_METHOD, PAY_TOKEN_PREFIX, STRIPE_PAYMENT_LINK } from "@/lib/payment-methods";
 import { livesInNigeria } from "@/lib/residence";
+import { ReceiptUpload } from "./ReceiptUpload";
+import type { ReceiptUpload as Receipt } from "@/lib/receipt";
 
 /** Field ids, in the order they appear, so a server rejection can name the step to go back to. */
 const FIELD_STEP: Record<string, number> = {
@@ -39,7 +41,7 @@ function readDraft() {
 }
 
 // token: the code sent to Stripe with the payment, which finds that payment again.
-type CardState = { state: "idle" | "waiting"; url?: string; token?: string };
+type CardState = { state: "idle" | "waiting"; url?: string; token?: string; error?: string };
 
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
 const isPhone = (v: string) => /^\+?\d{10,15}$/.test(v.replace(/[\s\-().]/g, ""));
@@ -194,6 +196,9 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
   // Card payment, for members who choose Stripe. The checkout opens in its own tab so nothing typed here is
   // lost; this page then learns the outcome from that tab, or by asking the server every few seconds.
   const [card, setCard] = useState<CardState>({ state: "idle" });
+  // Deliberately not part of `values`: the draft is written to sessionStorage on every keystroke,
+  // and a base64 image there would blow the storage quota and lose the whole draft.
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
 
   // Brings back an unfinished form after a refresh, including a card payment still in progress.
   // The server and the first browser render both show the empty form; the saved draft is applied
@@ -244,7 +249,25 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
           body: JSON.stringify({ token }),
         });
         const data = (await res.json().catch(() => ({}))) as { paid?: boolean; sessionId?: string; paymentRef?: string };
-        if (stopped || !data.paid || !data.sessionId) return;
+        if (stopped) return;
+
+        // The server could not ask Stripe at all. Without this the form polls silently for ever
+        // and the payer sees a dead button, which is exactly how this went wrong in testing.
+        if (!res.ok) {
+          setCard((c) =>
+            c.state === "waiting"
+              ? {
+                  ...c,
+                  error:
+                    res.status === 503
+                      ? "We can't confirm card payments automatically yet. If you have paid, enter the date and the transaction ID from your Stripe receipt below."
+                      : "We could not check your payment just now. We will keep trying, or you can enter the date and transaction ID from your Stripe receipt below.",
+                }
+              : c,
+          );
+          return;
+        }
+        if (!data.paid || !data.sessionId) return;
         const sessionId = data.sessionId;
         // Fills in the same date and reference fields a bank payer types, so the step reads the same.
         setValues((v) => ({
@@ -256,7 +279,12 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
         setErrors((e) => e.filter((x) => x !== "stripeSessionId"));
         setCard({ state: "idle" });
       } catch {
-        // Tried again on the next tick.
+        if (stopped) return;
+        setCard((c) =>
+          c.state === "waiting"
+            ? { ...c, error: "We could not reach the site to check your payment. We will keep trying, or you can enter the date and transaction ID from your Stripe receipt below." }
+            : c,
+        );
       }
     }
 
@@ -308,10 +336,14 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
   // The member chooses how to pay the fee, wherever they live.
   const byCard = values.paymentMethod === CARD_METHOD;
   const cardPaid = Boolean(values.stripeSessionId);
+  // The automatic check failed, so the payer types the date and transaction id from their Stripe
+  // receipt instead of being stuck behind two fields they cannot edit.
+  const cardManual = Boolean(card.error) && !cardPaid;
 
   function requiredFor(index: number) {
     if (STEPS[index].id !== "payment") return STEPS[index].required;
-    return byCard ? ["paymentMethod", "stripeSessionId"] : ["paymentMethod", "datePaid", "paymentReference"];
+    if (byCard && !cardManual) return ["paymentMethod", "stripeSessionId"];
+    return ["paymentMethod", "datePaid", "paymentReference"];
   }
 
   function choosePayment(method: string) {
@@ -359,7 +391,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify({ ...values, receipt }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; reference?: string; fields?: string[] };
 
@@ -369,6 +401,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
         setErrors([]);
         setStep(0);
         setCard({ state: "idle" });
+        setReceipt(null);
         try {
           sessionStorage.removeItem(DRAFT_KEY);
         } catch {
@@ -697,7 +730,16 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
               bad={errors.includes("paymentMethod")}
               onChange={choosePayment}
             />
-            {byCard && <CardPay paid={cardPaid} bad={errors.includes("stripeSessionId")} onPay={payNow} />}
+            {byCard && (
+              <CardPay
+                paid={cardPaid}
+                waiting={card.state === "waiting"}
+                error={card.error}
+                payUrl={card.url}
+                bad={errors.includes("stripeSessionId")}
+                onPay={payNow}
+              />
+            )}
             <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
               <Text
                 name="datePaid"
@@ -706,18 +748,19 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
                 values={values}
                 errors={errors}
                 set={set}
-                readOnly={byCard}
+                readOnly={byCard && !cardManual}
               />
               <Text
                 name="paymentReference"
                 label="Payment reference or transaction ID *"
-                placeholder={byCard && !cardPaid ? "Filled in when you pay" : undefined}
+                placeholder={byCard && !cardPaid && !cardManual ? "Filled in when you pay" : undefined}
                 values={values}
                 errors={errors}
                 set={set}
-                readOnly={byCard}
+                readOnly={byCard && !cardManual}
               />
             </div>
+            <ReceiptUpload value={receipt} onChange={setReceipt} />
             <Confirm
               name="receiptConfirmed"
               label="I have emailed my payment receipt to info@homebridgecooperative.org"
@@ -886,7 +929,21 @@ function PaymentMethod({
   );
 }
 
-function CardPay({ paid, bad, onPay }: { paid: boolean; bad: boolean; onPay: () => void }) {
+function CardPay({
+  paid,
+  waiting,
+  error,
+  payUrl,
+  bad,
+  onPay,
+}: {
+  paid: boolean;
+  waiting: boolean;
+  error?: string;
+  payUrl?: string;
+  bad: boolean;
+  onPay: () => void;
+}) {
   if (paid) {
     return (
       <div role="status" className="flex items-center gap-3 rounded-xl border border-[#BFDAC8] bg-[#EAF3EC] p-[18px]">
@@ -907,8 +964,39 @@ function CardPay({ paid, bad, onPay }: { paid: boolean; bad: boolean; onPay: () 
         onClick={onPay}
         className="btn btn-primary justify-center"
       >
-        Pay now by Stripe
+        {waiting ? "Open the payment page again" : "Pay now by Stripe"}
       </button>
+
+      {waiting && !error && (
+        <div role="status" className="flex items-center gap-3 rounded-xl border border-[#E0DCD2] bg-[#F6F5F2] p-[18px]">
+          <span
+            aria-hidden
+            className="size-4 shrink-0 animate-spin rounded-full border-2 border-[#C9C3B5] border-t-[#1c1b19]"
+          />
+          <div>
+            <p className="m-0 text-[15px] font-semibold">Waiting for your payment</p>
+            <p className="m-0 text-[13.5px] text-muted">
+              Finish paying in the Stripe tab. This page updates by itself, so keep it open.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* A failed check used to be silent, so the payer saw nothing at all and could not continue. */}
+      {error && (
+        <div role="status" className="rounded-xl border border-[#E6C9A8] bg-[#FBF2E7] p-[18px]">
+          <p className="m-0 text-[15px] font-semibold text-[#7A4F18]">We could not confirm your payment automatically</p>
+          <p className="m-0 mt-1 text-[13.5px] text-[#7A4F18]">{error}</p>
+          {payUrl && (
+            <p className="m-0 mt-2 text-[13px]">
+              <a href={payUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                Open the payment page again
+              </a>
+            </p>
+          )}
+        </div>
+      )}
+
       {bad && (
         <p className="m-0 text-[13px] text-[#8A3131]">Please pay the registration fee before continuing.</p>
       )}

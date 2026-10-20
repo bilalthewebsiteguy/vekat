@@ -6,7 +6,7 @@
 // is one person with one reference, not two records.
 
 import "server-only";
-import type { Collection } from "mongodb";
+import { Binary, type Collection } from "mongodb";
 import { getDb } from "@/lib/db";
 import { livesInNigeria } from "@/lib/residence";
 
@@ -94,6 +94,18 @@ type MemberDoc = {
     providerRef?: string;
     /** The provider event that recorded it, so a repeated webhook cannot double-count. */
     eventId?: string;
+  };
+
+  /**
+   * The receipt the applicant uploaded, if any. Held as bytes rather than a link so there is no
+   * second place to secure, and never returned to a browser without an officer signing in first.
+   */
+  receipt?: {
+    name: string;
+    type: string;
+    bytes: number;
+    data: Binary;
+    uploadedAt: Date;
   };
 
   groupName: string;
@@ -225,6 +237,9 @@ export async function markPaymentVerified(
   );
 }
 
+/** A receipt that has already been decoded and checked by the route. */
+export type StoredReceipt = { name: string; type: string; bytes: number; data: Buffer };
+
 export type RegistrationInput = {
   email: string;
   memberType: string[];
@@ -264,6 +279,7 @@ const DECLARATION_COUNT = 7;
 export async function saveRegistration(
   input: RegistrationInput,
   card: CardPayment | null,
+  receipt: StoredReceipt | null = null,
   declarationCount = DECLARATION_COUNT,
 ) {
   await ensureIndexes();
@@ -320,6 +336,18 @@ export async function saveRegistration(
     idChoice: input.idType,
     idNumber: input.idNumber,
     idDocsEmailed: input.idDocsConfirmed,
+
+    ...(receipt
+      ? {
+          receipt: {
+            name: receipt.name,
+            type: receipt.type,
+            bytes: receipt.bytes,
+            data: new Binary(receipt.data),
+            uploadedAt: now,
+          },
+        }
+      : {}),
 
     payment: card
       ? {

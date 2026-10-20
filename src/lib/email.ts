@@ -84,9 +84,12 @@ export type ConfirmationInput = {
   to: string;
   firstName: string;
   reference: string;
-  /** True when the fee was paid by card on the form; false when it was paid by bank transfer. */
-  paidByCard: boolean;
-  /** The transfer reference the member typed on the form. Bank payers only. */
+  /**
+   * How the fee was paid: confirmed by Stripe, claimed by card but not yet confirmed, or by bank
+   * transfer. Each gets a different closing line, so nobody is told to pay something twice.
+   */
+  method: "card-verified" | "card-claimed" | "bank";
+  /** The reference or transaction id the member typed. Not used for a confirmed card payment. */
   paymentReference?: string;
 };
 
@@ -101,10 +104,19 @@ export async function sendRegistrationConfirmation(input: ConfirmationInput): Pr
   const ref = input.reference;
   const payRef = input.paymentReference?.trim() || "";
 
-  const nextStep = input.paidByCard
+  const withRef = (lead: string, bold: boolean) =>
+    payRef ? `${lead}, with the reference ${bold ? `<strong>${esc(payRef)}</strong>` : payRef}` : lead;
+
+  const nextStep =
+    input.method === "card-verified"
+      ? {
+          text: `Your £10 registration fee was paid by card with this application, so there is nothing further to pay. Your card statement will show the payment separately.`,
+          html: `Your <strong>£10 registration fee</strong> was paid by card with this application, so there is nothing further to pay. Your card statement will show the payment separately.`,
+        }
+      : input.method === "card-claimed"
     ? {
-        text: `Your £10 registration fee was paid by card with this application, so there is nothing further to pay. Your card statement will show the payment separately.`,
-        html: `Your <strong>£10 registration fee</strong> was paid by card with this application, so there is nothing further to pay. Your card statement will show the payment separately.`,
+        text: `${withRef("You told us you paid the £10 registration fee by card", false)}. We will check it against our Stripe records and confirm it. There is nothing further for you to do.`,
+        html: `${withRef("You told us you paid the <strong>£10</strong> registration fee by card", true)}. We will check it against our Stripe records and confirm it. There is nothing further for you to do.`,
       }
     : {
         // The form takes the transfer details after the member has paid, so this confirms what

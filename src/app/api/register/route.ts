@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { isDbConfigured } from "@/lib/db";
 import { isEmailConfigured, sendRegistrationConfirmation } from "@/lib/email";
-import { isCheckoutSessionUsed, saveRegistration, type CardPayment, type RegistrationInput } from "@/lib/registrations";
+import { RECEIPT_MAX_BASE64, RECEIPT_MAX_BYTES, isReceiptType } from "@/lib/receipt";
+import { isCheckoutSessionUsed, saveRegistration, type CardPayment, type RegistrationInput, type StoredReceipt } from "@/lib/registrations";
 import { BANK_METHOD, CARD_METHOD } from "@/lib/payment-methods";
 import { isFormLinkPayment, isStripeConfigured, stripe } from "@/lib/stripe";
 
@@ -103,7 +104,11 @@ export async function POST(req: Request) {
   if (input.nomineeRelationship.length < 2) fields.push("nomineeRelationship");
   if (!isPhone(input.nomineePhone)) fields.push("nomineePhone");
   if (input.paymentMethod !== BANK_METHOD && !byCard) fields.push("paymentMethod");
-  if (byCard) {
+  // A card payment the site confirmed with Stripe carries a session id. When the site could not
+  // reach Stripe, the payer types the date and transaction id from their receipt instead, and the
+  // fee is recorded as claimed rather than verified for an officer to check.
+  const cardConfirmed = byCard && Boolean(stripeSessionId);
+  if (cardConfirmed) {
     if (!stripeSessionId.startsWith("cs_")) fields.push("stripeSessionId");
   } else {
     if (!isDate(input.datePaid)) fields.push("datePaid");
@@ -128,7 +133,7 @@ export async function POST(req: Request) {
 
   // The session id from the browser proves nothing: Stripe's own record of it decides.
   let card: CardPayment | null = null;
-  if (byCard) {
+  if (cardConfirmed) {
     if (!isStripeConfigured()) {
       return NextResponse.json({ ok: false, error: "Card payment is not set up yet" }, { status: 503 });
     }
@@ -161,8 +166,30 @@ export async function POST(req: Request) {
     }
   }
 
+  // Optional, so a bad or oversized file is dropped rather than turned away: losing a receipt is
+  // recoverable by email, losing the registration is not.
+  let receipt: StoredReceipt | null = null;
+  const raw = body.receipt;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const r = raw as Record<string, unknown>;
+    const name = str(r.name, 120) || "receipt";
+    const type = str(r.type, 80);
+    const data = typeof r.data === "string" ? r.data : "";
+    if (isReceiptType(type) && data && data.length <= RECEIPT_MAX_BASE64) {
+      const bytes = Buffer.from(data, "base64");
+      // Base64 of the wrong thing decodes to something far shorter than it claimed.
+      if (bytes.length > 0 && bytes.length <= RECEIPT_MAX_BYTES) {
+        receipt = { name, type, bytes: bytes.length, data: bytes };
+      } else {
+        console.warn("[register] a receipt was dropped: decoded size out of range");
+      }
+    } else {
+      console.warn("[register] a receipt was dropped: unsupported type or too large");
+    }
+  }
+
   try {
-    const { reference } = await saveRegistration(input, card);
+    const { reference } = await saveRegistration(input, card, receipt);
 
     // Sent only after the record is safely stored, and a mail failure never fails the
     // registration: the member has their reference on screen either way, and the error is logged
@@ -172,8 +199,8 @@ export async function POST(req: Request) {
         to: input.email,
         firstName: input.firstName,
         reference,
-        paidByCard: byCard,
-        paymentReference: byCard ? undefined : input.paymentReference,
+        method: cardConfirmed ? "card-verified" : byCard ? "card-claimed" : "bank",
+        paymentReference: cardConfirmed ? undefined : input.paymentReference,
       });
       if (!sent.ok) console.error("[register] confirmation email not sent:", sent.error);
     } else {
