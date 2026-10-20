@@ -151,7 +151,7 @@ const INITIAL: Values = {
   signature: "",
 };
 
-export default function RegistrationForm({ sessionId = "" }: { sessionId?: string }) {
+export default function RegistrationForm({ sessionId = "", stripeReady = false }: { sessionId?: string; stripeReady?: boolean }) {
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<Values>(INITIAL);
   const [errors, setErrors] = useState<string[]>([]);
@@ -339,7 +339,9 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
   const cardPaid = Boolean(values.stripeSessionId);
   // The automatic check failed, so the payer types the date and transaction id from their Stripe
   // receipt instead of being stuck behind two fields they cannot edit.
-  const cardManual = Boolean(card.error) && !cardPaid;
+  // Also true before anyone clicks Pay: with no Stripe key the site can never confirm a payment,
+  // so holding the member behind a confirmation would be a dead end with no way out.
+  const cardManual = (Boolean(card.error) || !stripeReady) && !cardPaid;
 
   function requiredFor(index: number) {
     if (STEPS[index].id !== "payment") return STEPS[index].required;
@@ -737,6 +739,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
             {byCard && (
               <CardPay
                 paid={cardPaid}
+                manual={cardManual && !card.error}
                 waiting={card.state === "waiting"}
                 error={card.error}
                 payUrl={card.url}
@@ -943,6 +946,7 @@ function PaymentMethod({
 
 function CardPay({
   paid,
+  manual,
   waiting,
   error,
   payUrl,
@@ -950,6 +954,8 @@ function CardPay({
   onPay,
 }: {
   paid: boolean;
+  /** Card payments cannot be confirmed automatically, so the member enters the details. */
+  manual: boolean;
   waiting: boolean;
   error?: string;
   payUrl?: string;
@@ -1007,6 +1013,12 @@ function CardPay({
             </p>
           )}
         </div>
+      )}
+
+      {manual && !waiting && (
+        <p className="m-0 text-[13px] text-muted">
+          After paying, enter the date and the transaction ID from your Stripe receipt below, or upload the receipt.
+        </p>
       )}
 
       {bad && (

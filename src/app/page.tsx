@@ -7,6 +7,7 @@ import Hero from "@/components/Hero";
 import HomeBridge from "@/components/HomeBridge";
 import Register from "@/components/Register";
 import Services from "@/components/Services";
+import { isStripeConfigured } from "@/lib/stripe";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -14,7 +15,9 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 async function RegisterWithSession({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const sessionId = typeof sp.session_id === "string" ? sp.session_id : "";
-  return <Register sessionId={sessionId} />;
+  // Whether a card payment can be confirmed at all. Without a Stripe key the form must not hold
+  // anyone behind a confirmation that can never arrive.
+  return <Register sessionId={sessionId} stripeReady={isStripeConfigured()} />;
 }
 
 export default function Home({ searchParams }: { searchParams: SearchParams }) {
