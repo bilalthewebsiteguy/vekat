@@ -86,6 +86,8 @@ type MemberDoc = {
     datePaid: string;
     reference: string;
     receiptEmailed: boolean;
+    /** Whose account the money came from, when a joint or family account paid. */
+    payerName?: string;
     verifiedAt: Date | null;
     verifiedBy: string | null;
     amount: string | null;
@@ -268,6 +270,8 @@ export type RegistrationInput = {
   paymentMethod: string;
   datePaid: string;
   paymentReference: string;
+  /** Whose account the money came from, when it was not the member's own. */
+  payerName: string;
   receiptConfirmed: boolean;
   sharePlan: string;
   declarations: string[];
@@ -368,6 +372,7 @@ export async function saveRegistration(
           method: input.paymentMethod,
           datePaid: input.datePaid,
           reference: input.paymentReference,
+          payerName: input.payerName,
           receiptEmailed: input.receiptConfirmed,
           verifiedAt: null,
           verifiedBy: null,

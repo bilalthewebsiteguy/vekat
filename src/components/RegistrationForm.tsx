@@ -14,7 +14,7 @@ const FIELD_STEP: Record<string, number> = {
   phone: 2, homeAddress: 2, countryOfResidence: 2,
   idType: 3, idNumber: 3, idDocsConfirmed: 3,
   nomineeName: 4, nomineeRelationship: 4, nomineePhone: 4,
-  paymentMethod: 5, stripeSessionId: 5, datePaid: 5, paymentReference: 5,
+  paymentMethod: 5, stripeSessionId: 5, datePaid: 5, paymentReference: 5, payerName: 5,
   sharePlan: 6,
   declarations: 7, signature: 7,
 };
@@ -144,6 +144,7 @@ const INITIAL: Values = {
   stripeSessionId: "",
   datePaid: "",
   paymentReference: "",
+  payerName: "",
   receiptConfirmed: "",
   sharePlan: "",
   declarations: [],
@@ -342,15 +343,18 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
 
   function requiredFor(index: number) {
     if (STEPS[index].id !== "payment") return STEPS[index].required;
+    // The date and transaction id are optional: a member may upload a receipt instead, or send one
+    // within 7 days. A card payment the site can confirm still has to be there, because that proof
+    // is free and already in hand.
     if (byCard && !cardManual) return ["paymentMethod", "stripeSessionId"];
-    return ["paymentMethod", "datePaid", "paymentReference"];
+    return ["paymentMethod"];
   }
 
   function choosePayment(method: string) {
     // A card payment already made stays chosen, so it cannot be lost by switching.
     if (cardPaid || method === values.paymentMethod) return;
     // The date and reference belong to the old choice: Stripe fills them in itself.
-    setValues((v) => ({ ...v, paymentMethod: method, datePaid: "", paymentReference: "" }));
+    setValues((v) => ({ ...v, paymentMethod: method, datePaid: "", paymentReference: "", payerName: "" }));
     setErrors((e) => e.filter((x) => !["paymentMethod", "stripeSessionId", "datePaid", "paymentReference"].includes(x)));
   }
 
@@ -743,7 +747,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
             <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
               <Text
                 name="datePaid"
-                label="Date paid *"
+                label="Date paid"
                 type="date"
                 values={values}
                 errors={errors}
@@ -752,7 +756,7 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
               />
               <Text
                 name="paymentReference"
-                label="Payment reference or transaction ID *"
+                label="Payment reference or transaction ID"
                 placeholder={byCard && !cardPaid && !cardManual ? "Filled in when you pay" : undefined}
                 values={values}
                 errors={errors}
@@ -760,6 +764,14 @@ export default function RegistrationForm({ sessionId = "" }: { sessionId?: strin
                 readOnly={byCard && !cardManual}
               />
             </div>
+            <Text
+              name="payerName"
+              label="If someone else paid for you, what name is on their account?"
+              placeholder="Leave blank if you paid yourself"
+              values={values}
+              errors={errors}
+              set={set}
+            />
             <ReceiptUpload value={receipt} onChange={setReceipt} />
             <Confirm
               name="receiptConfirmed"

@@ -71,6 +71,7 @@ export async function POST(req: Request) {
     paymentMethod: "",
     datePaid: str(body.datePaid, 10),
     paymentReference: str(body.paymentReference, 80),
+    payerName: str(body.payerName, 120),
     receiptConfirmed: yes(body.receiptConfirmed),
     sharePlan: str(body.sharePlan, 120),
     declarations: list(body.declarations, 12),
@@ -111,8 +112,10 @@ export async function POST(req: Request) {
   if (cardConfirmed) {
     if (!stripeSessionId.startsWith("cs_")) fields.push("stripeSessionId");
   } else {
-    if (!isDate(input.datePaid)) fields.push("datePaid");
-    if (input.paymentReference.length < 3) fields.push("paymentReference");
+    // Both are optional: a member may upload a receipt instead, or send one within 7 days. They
+    // are still checked when given, so a half-typed date does not reach an officer as fact.
+    if (input.datePaid && !isDate(input.datePaid)) fields.push("datePaid");
+    if (input.paymentReference && input.paymentReference.length < 3) fields.push("paymentReference");
   }
   if (input.declarations.length < 7) fields.push("declarations");
   if (input.signature.length < 3) fields.push("signature");
