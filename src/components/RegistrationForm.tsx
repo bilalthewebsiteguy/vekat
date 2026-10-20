@@ -218,7 +218,7 @@ export default function RegistrationForm({ sessionId = "", stripeReady = false }
     if (draft?.values) {
       setValues({ ...INITIAL, ...draft.values });
       setStep(Math.min(Math.max(Number(draft.step) || 0, 0), STEPS.length - 1));
-      if (draft.pending && !draft.values.stripeSessionId) {
+      if (stripeReady && draft.pending && !draft.values.stripeSessionId) {
         setCard({ state: "waiting", url: draft.payUrl, token: draft.pending });
       }
     }
@@ -317,6 +317,9 @@ export default function RegistrationForm({ sessionId = "", stripeReady = false }
     url.searchParams.set("client_reference_id", token);
     if (isEmail(String(values.email ?? ""))) url.searchParams.set("prefilled_email", String(values.email));
     window.open(url.toString(), "_blank");
+    // Without a Stripe key there is nothing to wait for: polling could only ever fail, and the
+    // failure box would be the first thing a paying member saw. The fields are already editable.
+    if (!stripeReady) return;
     setCard({ state: "waiting", url: url.toString(), token });
   }
 
