@@ -17,6 +17,29 @@ export function makeReference(prefix: string) {
   return `${prefix}-${Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]).join("")}`;
 }
 
+/**
+ * HBA-YYMM-NNNN — the application reference (HomeBridge brief p.3 and p.5: "On submit: create
+ * applicant, issue application reference HBA-YYMM-NNNN").
+ *
+ * Taken from the SAME counter the HomeBridge site uses (`counters`, _id "application_seq", in the
+ * shared database), so an application made here and one made there can never get the same number.
+ * The membership number (HBC-ZONE-YY-NNNNN) is issued later, by HomeBridge, when VEKAT approves.
+ * Keep this format identical to formatApplicationRef() in the HomeBridge repo (lib/numbering.ts).
+ */
+export async function issueApplicationRef(at: Date = new Date()): Promise<string> {
+  const db = await getDb();
+  const counters = db.collection<{ _id: string; value: number }>("counters");
+  const doc = await counters.findOneAndUpdate(
+    { _id: "application_seq" },
+    { $inc: { value: 1 } },
+    { upsert: true, returnDocument: "after" },
+  );
+  if (!doc) throw new Error("Could not take the next application reference");
+  const yy = String(at.getUTCFullYear()).slice(-2);
+  const mm = String(at.getUTCMonth() + 1).padStart(2, "0");
+  return `HBA-${yy}${mm}-${String(doc.value).padStart(4, "0")}`;
+}
+
 export const normEmail = (v: string) => v.trim().toLowerCase();
 
 /** Digits only, keeping the last 10, so +234 810 583 2602 and 08105832602 match. */
@@ -295,8 +318,8 @@ export async function saveRegistration(
 
   const personRef = await upsertPerson({ name: fullName, email: input.email, phone: input.phone });
   const { members } = await collections();
-  const reference = makeReference("APP");
   const now = new Date();
+  const reference = await issueApplicationRef(now);
 
   await members.insertOne({
     reference,

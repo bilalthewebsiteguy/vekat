@@ -15,7 +15,7 @@ export const STRIPE_PAYMENT_LINK =
 
 /**
  * Starts the random code the form sends to Stripe as client_reference_id, so a payment made on the
- * link can be matched back to this form. Registrations paid later use their APP- reference instead.
+ * link can be matched back to this form. Registrations paid later use their HBA- application reference instead.
  */
 export const PAY_TOKEN_PREFIX = "vekatpay_";
 export const isPayToken = (v: string) => new RegExp(`^${PAY_TOKEN_PREFIX}[A-Za-z0-9-]{20,60}$`).test(v);

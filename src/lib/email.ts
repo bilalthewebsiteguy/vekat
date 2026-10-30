@@ -130,7 +130,7 @@ export async function sendRegistrationConfirmation(input: ConfirmationInput): Pr
     ``,
     `Thank you for registering with Home Bridge Cooperative. We have your application.`,
     ``,
-    `Your reference: ${ref}`,
+    `Your application reference: ${ref}`,
     `Please keep it. Quote it in any message to us about your membership.`,
     ``,
     nextStep.text,
@@ -149,7 +149,7 @@ export async function sendRegistrationConfirmation(input: ConfirmationInput): Pr
       <p style="margin:0 0 16px">Thank you for registering with <strong>Home Bridge Cooperative</strong>. We have your application.</p>
       <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 16px;background:#f6f5f2;border-radius:8px">
         <tr><td style="padding:16px;text-align:center">
-          <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b6760">Your reference</div>
+          <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b6760">Your application reference</div>
           <div style="font-size:22px;font-weight:700;letter-spacing:.04em;margin-top:4px">${esc(ref)}</div>
         </td></tr>
       </table>
@@ -165,7 +165,7 @@ export async function sendRegistrationConfirmation(input: ConfirmationInput): Pr
 
   return sendEmail({
     to: input.to,
-    subject: `Your Home Bridge registration — ${ref}`,
+    subject: `HomeBridge application received (${ref})`,
     text,
     html,
   });
