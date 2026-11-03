@@ -170,3 +170,87 @@ export async function sendRegistrationConfirmation(input: ConfirmationInput): Pr
     html,
   });
 }
+
+/** Where new-registration alerts go. OFFICE_ALERT_EMAIL can list several, comma-separated. */
+const DEFAULT_OFFICE_ALERT = "admin@vekat.org";
+
+export type OfficeAlertInput = {
+  reference: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  memberTypes: string[];
+  cohort: string[];
+  country: string;
+  paymentMethod: string;
+  /** "Paid by card (confirmed)", "Card (to check)" or "Bank transfer". */
+  feeStatus: string;
+};
+
+/**
+ * Tells the VEKAT office that someone has just filled in the Home Bridge form on vekat.org, so
+ * they do not have to keep checking the admin panel. Contact details only: no ID number, no date
+ * of birth and no documents.
+ */
+export async function sendOfficeAlert(input: OfficeAlertInput): Promise<SendResult> {
+  const raw = process.env.OFFICE_ALERT_EMAIL?.trim();
+  if (raw === "off") return { ok: true, id: "" };
+  const recipients = (raw || DEFAULT_OFFICE_ALERT).split(",").map((s) => s.trim()).filter(Boolean);
+  const adminUrl = process.env.HOMEBRIDGE_ADMIN_URL?.trim() || "";
+
+  const rows = (
+    [
+      ["Reference", input.reference],
+      ["Name", input.fullName],
+      ["Email", input.email],
+      ["Phone", input.phone],
+      ["Membership", input.memberTypes.join(", ")],
+      ["Cohort", input.cohort.join(", ")],
+      ["Country", input.country],
+      ["Joining fee", input.feeStatus],
+    ] as [string, string][]
+  ).filter(([, v]) => v.trim());
+
+  const subject = `New Home Bridge registration on vekat.org: ${input.fullName} (${input.reference})`;
+  const text = [
+    `A new Home Bridge registration has just come in through the form on vekat.org.`,
+    ``,
+    ...rows.map(([k, v]) => `${k}: ${v}`),
+    ``,
+    adminUrl
+      ? `Open it in the HomeBridge admin panel (VEKAT form tab): ${adminUrl}`
+      : `Open the HomeBridge admin panel (VEKAT form tab) to review it.`,
+    ``,
+    `ID details are not included in this email. View them in the admin panel.`,
+  ].join("\n");
+
+  const html = `<!doctype html>
+<html><body style="margin:0;padding:24px;background:#F3F1EA;font-family:ui-sans-serif,system-ui,'Segoe UI',Arial,sans-serif;color:#1D201C;line-height:1.6">
+  <table role="presentation" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#FFFDF7;border-radius:12px;border:1px solid #E2DED2">
+    <tr><td style="padding:28px">
+      <p style="margin:0 0 16px">A new <strong>Home Bridge registration</strong> has just come in through the form on vekat.org.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;background:#F3F1EA;border-radius:8px">
+        ${rows
+          .map(
+            ([k, v]) =>
+              `<tr><td style="padding:8px 16px;color:#6B6A61;font-size:13px;width:120px">${esc(k)}</td><td style="padding:8px 16px;font-weight:600">${esc(v)}</td></tr>`,
+          )
+          .join("")}
+      </table>
+      <p style="margin:0 0 20px">${
+        adminUrl
+          ? `<a href="${esc(adminUrl)}" style="display:inline-block;background:#1F4D3A;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600">Open the admin panel</a>`
+          : `Open the HomeBridge admin panel (VEKAT form tab) to review it.`
+      }</p>
+      <p style="margin:0;padding-top:16px;border-top:1px solid #E2DED2;font-size:13px;color:#6B6A61">ID details are not included in this email. View them in the admin panel.</p>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  let last: SendResult = { ok: true, id: "" };
+  for (const to of recipients) {
+    const sent = await sendEmail({ to, subject, text, html });
+    if (!sent.ok) last = sent;
+  }
+  return last;
+}

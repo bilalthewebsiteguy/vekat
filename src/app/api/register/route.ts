@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isDbConfigured } from "@/lib/db";
-import { isEmailConfigured, sendRegistrationConfirmation } from "@/lib/email";
+import { isEmailConfigured, sendOfficeAlert, sendRegistrationConfirmation } from "@/lib/email";
 import { RECEIPT_MAX_BASE64, RECEIPT_MAX_BYTES, isReceiptType } from "@/lib/receipt";
 import { isCheckoutSessionUsed, saveRegistration, type CardPayment, type RegistrationInput, type StoredReceipt } from "@/lib/registrations";
 import { BANK_METHOD, CARD_METHOD } from "@/lib/payment-methods";
@@ -208,6 +208,23 @@ export async function POST(req: Request) {
       if (!sent.ok) console.error("[register] confirmation email not sent:", sent.error);
     } else {
       console.warn("[register] RESEND_API_KEY is not set — no confirmation email was sent.");
+    }
+
+    // Tells the VEKAT office someone has registered, so they need not keep checking the admin
+    // panel. Contact details only, no ID; a failure is logged and never fails the registration.
+    if (isEmailConfigured()) {
+      const alert = await sendOfficeAlert({
+        reference,
+        fullName: [input.title, input.firstName, input.otherNames, input.surname].filter(Boolean).join(" "),
+        email: input.email,
+        phone: input.phone,
+        memberTypes: input.memberType,
+        cohort: input.cohort,
+        country: input.countryOfResidence,
+        paymentMethod: input.paymentMethod,
+        feeStatus: cardConfirmed ? "Paid by card (confirmed)" : byCard ? "Card (to check)" : "Bank transfer (to check)",
+      });
+      if (!alert.ok) console.error("[register] office alert not sent:", alert.error);
     }
 
     return NextResponse.json({ ok: true, reference });
